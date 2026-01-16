@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QuickChat Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 3px solid #3b82f6;
+            width: 20px;
+            height: 20px;
+            -webkit-animation: spin 1s linear infinite; /* Safari */
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 font-sans">
+
+    <div class="max-w-4xl mx-auto p-6">
+        
+        <!-- Header -->
+        <header class="mb-8 flex justify-between items-center">
+            <div>
+                <h1 class="text-3xl font-bold text-blue-600">QuickChat Admin</h1>
+                <p class="text-gray-500">Manage your chat rooms</p>
+            </div>
+            <div id="connection-status" class="text-sm px-3 py-1 rounded-full bg-yellow-100 text-yellow-700 font-medium flex items-center gap-2">
+                <div class="loader"></div> Connecting...
+            </div>
+        </header>
+
+        <!-- Create Room Card -->
+        <div class="bg-white p-6 rounded-xl shadow-md mb-8">
+            <h2 class="text-xl font-semibold mb-4 border-b pb-2">Create New Room</h2>
+            <div class="flex flex-col md:flex-row gap-4 items-end">
+                <div class="flex-grow w-full">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Room Name</label>
+                    <input type="text" id="roomNameInput" placeholder="e.g., Friday Standup" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                </div>
+                
+                <div class="flex items-center h-12 pb-1">
+                    <input type="checkbox" id="requireUsername" class="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 border-gray-300">
+                    <label for="requireUsername" class="ml-2 text-gray-700">Require Username?</label>
+                </div>
+
+                <button onclick="createRoom()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition shadow-md w-full md:w-auto">
+                    Create
+                </button>
+            </div>
+        </div>
+
+        <!-- Room List -->
+        <div class="bg-white p-6 rounded-xl shadow-md">
+            <h2 class="text-xl font-semibold mb-4 border-b pb-2">Active Rooms</h2>
+            <div id="roomList" class="space-y-3">
+                <!-- Rooms will be injected here by JS -->
+                <p class="text-gray-400 text-center py-4">Loading rooms...</p>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Firebase Logic -->
+    <script type="module">
+        // Import Firebase SDKs
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getDatabase, ref, push, onValue, remove, set } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+        // ==========================================
+        // 1. CONFIGURATION (PASTE YOUR KEYS HERE)
+        // ==========================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyAR7Tjp8k8dHybMWpmx-MfaV9Ziyl3eADc",
+            authDomain: "fwft-quickchat.firebaseapp.com",
+            databaseURL: "https://fwft-quickchat-default-rtdb.firebaseio.com",
+            projectId: "fwft-quickchat",
+            storageBucket: "fwft-quickchat.firebasestorage.app",
+            messagingSenderId: "27728669602",
+            appId: "1:27728669602:web:674bfa6cbb66320985e0fb",
+            measurementId: "G-ZRRG2BM00F"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        const auth = getAuth(app);
+        
+        let currentUser = null;
+
+        // 2. AUTHENTICATION (Connect silently)
+        onAuthStateChanged(auth, (user) => {
+            const statusEl = document.getElementById('connection-status');
+            if (user) {
+                currentUser = user;
+                statusEl.className = "text-sm px-3 py-1 rounded-full bg-green-100 text-green-700 font-medium";
+                statusEl.textContent = "● Connected";
+                listenForRooms(); // Start loading data only after connected
+            } else {
+                signInAnonymously(auth).catch((error) => {
+                    console.error("Auth Error:", error);
+                    statusEl.textContent = "⚠ Connection Failed";
+                    statusEl.className = "bg-red-100 text-red-700 px-3 py-1 rounded-full";
+                });
+            }
+        });
+
+        // 3. CREATE ROOM FUNCTION
+        window.createRoom = function() {
+            if (!currentUser) return alert("Not connected to server yet.");
+            
+            const nameInput = document.getElementById('roomNameInput');
+            const requireUserCheck = document.getElementById('requireUsername');
+            const name = nameInput.value.trim();
+
+            if (!name) return alert("Please enter a room name");
+
+            const roomsRef = ref(db, 'rooms');
+            const newRoomRef = push(roomsRef); // Generates a unique ID automatically
+
+            set(newRoomRef, {
+                name: name,
+                requireUsername: requireUserCheck.checked,
+                createdAt: Date.now(),
+                createdBy: currentUser.uid
+            }).then(() => {
+                // Clear input
+                nameInput.value = "";
+                requireUserCheck.checked = false;
+            }).catch(alert);
+        }
+
+        // 4. CLEAR MESSAGES ONLY
+        window.clearMessages = function(roomId) {
+            if(!window.confirm("⚠️ Clear history?\n\nThis will delete ALL messages in this room. Users can still join the room.")) return;
+
+            remove(ref(db, `messages/${roomId}`))
+                .then(() => {
+                    alert("Chat history cleared!");
+                })
+                .catch((error) => {
+                    console.error("Clear failed:", error);
+                    alert("Error clearing messages: " + error.message);
+                });
+        }
+
+        // 5. DELETE ROOM FUNCTION
+        window.deleteRoom = function(roomId) {
+            console.log("Delete requested for ID:", roomId);
+            if(!window.confirm("Are you sure? This will delete the room AND all messages permanently.")) return;
+
+            // Delete the room definition
+            remove(ref(db, `rooms/${roomId}`))
+                .then(() => {
+                    console.log("Room deleted successfully");
+                })
+                .catch((error) => {
+                    console.error("Delete failed:", error);
+                    alert("Error deleting room: " + error.message);
+                });
+
+            // Delete the messages for this room (Optional cleanup)
+            remove(ref(db, `messages/${roomId}`)).catch(err => console.error("Msg cleanup failed", err));
+        }
+
+        // 6. COPY LINK FUNCTION
+        window.copyLink = function(roomId) {
+            // Assumes chat.html is in the same folder as admin.html
+            const url = `${window.location.origin}${window.location.pathname.replace('admin.html', 'chat.html')}?id=${roomId}`;
+            
+            function fallbackCopy(text) {
+                const textArea = document.createElement("textarea");
+                textArea.value = text;
+                textArea.style.position = "fixed";
+                textArea.style.left = "-9999px";
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+
+                try {
+                    const successful = document.execCommand('copy');
+                    if (successful) {
+                        alert("Link copied to clipboard!\n" + text);
+                    } else {
+                        prompt("Copy this link manually:", text);
+                    }
+                } catch (err) {
+                    console.error('Fallback copy failed', err);
+                    prompt("Copy this link manually:", text);
+                }
+                document.body.removeChild(textArea);
+            }
+
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(url).then(() => {
+                    alert("Link copied to clipboard!\n" + url);
+                }).catch(err => {
+                    console.warn('Clipboard API blocked/failed, trying fallback...', err);
+                    fallbackCopy(url);
+                });
+            } else {
+                fallbackCopy(url);
+            }
+        }
+
+        // 7. LISTEN FOR ROOMS (Real-time List)
+        function listenForRooms() {
+            const roomListEl = document.getElementById('roomList');
+            const roomsRef = ref(db, 'rooms');
+
+            onValue(roomsRef, (snapshot) => {
+                roomListEl.innerHTML = ""; // Clear list
+                const rooms = snapshot.val();
+
+                if (!rooms) {
+                    roomListEl.innerHTML = `<div class="text-center text-gray-500 py-4">No active rooms. Create one above!</div>`;
+                    return;
+                }
+
+                // Loop through rooms and create HTML
+                Object.entries(rooms).forEach(([id, room]) => {
+                    const requiresUserBadge = room.requireUsername 
+                        ? `<span class="bg-purple-100 text-purple-700 text-xs px-2 py-1 rounded-full">Usernames Required</span>` 
+                        : `<span class="bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full">Anonymous Allowed</span>`;
+
+                    const html = `
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between bg-gray-50 p-4 rounded-lg border border-gray-200">
+                            <div class="mb-3 sm:mb-0">
+                                <h3 class="font-bold text-lg text-gray-800">${room.name}</h3>
+                                <div class="flex gap-2 mt-1">
+                                    ${requiresUserBadge}
+                                    <span class="text-xs text-gray-400 self-center">ID: ${id.substring(0,6)}...</span>
+                                </div>
+                            </div>
+                            <div class="flex gap-2 flex-wrap">
+                                <button onclick="copyLink('${id}')" class="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded text-sm transition font-medium">
+                                    🔗 Copy Link
+                                </button>
+                                <button onclick="clearMessages('${id}')" class="bg-yellow-50 border border-yellow-200 hover:bg-yellow-100 text-yellow-600 px-3 py-1.5 rounded text-sm transition font-medium">
+                                    🧹 Clear Msgs
+                                </button>
+                                <button onclick="deleteRoom('${id}')" class="bg-red-50 border border-red-200 hover:bg-red-100 text-red-600 px-3 py-1.5 rounded text-sm transition font-medium">
+                                    🗑 Delete
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                    roomListEl.insertAdjacentHTML('afterbegin', html); // Newest on top
+                });
+            });
+        }
+    </script>
+</body>
+</html>

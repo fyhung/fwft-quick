@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>QuickJump (Matter.js)</title>
+    <!-- Matter.js Physics Engine -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background: #87CEEB; touch-action: none; user-select: none; -webkit-user-select: none; }
+        canvas { display: block; }
+        .controls { position: absolute; bottom: 20px; width: 100%; pointer-events: none; display: flex; justify-content: space-between; padding: 0 20px; box-sizing: border-box; }
+        .btn-group { display: flex; gap: 10px; pointer-events: auto; }
+        .touch-btn { width: 60px; height: 60px; background: rgba(255,255,255,0.3); border: 2px solid rgba(255,255,255,0.6); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; color: white; user-select: none; }
+        .touch-btn:active { background: rgba(255,255,255,0.6); }
+    </style>
+</head>
+<body>
+
+    <canvas id="gameCanvas"></canvas>
+    
+    <div class="absolute top-0 left-0 p-4 text-white font-bold drop-shadow-md pointer-events-none">
+        <h1 id="roomTitle">Connecting...</h1>
+        <p class="text-xs font-normal">Players: <span id="playerCount">0</span></p>
+        <p class="text-xs font-normal text-yellow-300">Coins: <span id="coinCount">0</span>/20</p>
+    </div>
+
+    <div class="controls" id="mobileControls">
+        <div class="btn-group">
+            <div class="touch-btn" id="btnLeft">←</div>
+            <div class="touch-btn" id="btnRight">→</div>
+        </div>
+        <div class="btn-group">
+            <!-- Ensure ID matches script logic -->
+            <div class="touch-btn" id="btnJump">↑</div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        // Added 'push' to imports
+        import { getDatabase, ref, onValue, set, onDisconnect, update, remove, push } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+        // CONFIG
+        const firebaseConfig = {
+            apiKey: "AIzaSyAR7Tjp8k8dHybMWpmx-MfaV9Ziyl3eADc",
+            authDomain: "fwft-quickchat.firebaseapp.com",
+            databaseURL: "https://fwft-quickchat-default-rtdb.firebaseio.com",
+            projectId: "fwft-quickchat",
+            storageBucket: "fwft-quickchat.firebasestorage.app",
+            messagingSenderId: "27728669602",
+            appId: "1:27728669602:web:674bfa6cbb66320985e0fb",
+            measurementId: "G-ZRRG2BM00F"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        const auth = getAuth(app);
+
+        const roomId = new URLSearchParams(window.location.search).get('id');
+        if (!roomId) window.location.href = 'game_admin.html';
+
+        // ===========================
+        // MATTER.JS SETUP
+        // ===========================
+        const Engine = Matter.Engine,
+              Render = Matter.Render,
+              Runner = Matter.Runner,
+              Bodies = Matter.Bodies,
+              Body = Matter.Body,
+              Composite = Matter.Composite,
+              Events = Matter.Events,
+              Vector = Matter.Vector,
+              Query = Matter.Query; 
+
+        const engine = Engine.create();
+        const world = engine.world;
+        engine.gravity.y = 3.0; 
+
+        let currentUser = null;
+        let myId = null;
+        let localBody = null;
+        const remoteBodies = {}; 
+        const remoteData = {};   
+        let isGrounded = false;
+        
+        let lastPushTime = 0;
+        const PUSH_INTERVAL = 50;
+
+        // Coin State
+        let coins = {}; 
+        let myScore = 0;
+
+        const keys = { left: false, right: false, up: false };
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // ===========================
+        // GROUND DETECTION (EVENTS)
+        // ===========================
+        function handleCollisions(event) {
+            if (!localBody) return;
+            
+            const pairs = event.pairs;
+            for (let i = 0; i < pairs.length; i++) {
+                const pair = pairs[i];
+                const collision = pair.collision;
+                
+                if (pair.bodyA === localBody) {
+                    if (collision.normal.y > 0.7) isGrounded = true;
+                } else if (pair.bodyB === localBody) {
+                    if (collision.normal.y < -0.7) isGrounded = true;
+                }
+            }
+        }
+
+        Events.on(engine, 'collisionStart', handleCollisions);
+        Events.on(engine, 'collisionActive', handleCollisions);
+
+        // ===========================
+        // WORLD GENERATION (NEW MAP)
+        // ===========================
+        const PLAYER_SIZE = 30;
+        const platformDefs = [
+            // Ground (Wide base)
+            { x: 1000, y: 580, w: 2000, h: 60 }, 
+            
+            // Low Platforms
+            { x: 200, y: 480, w: 150, h: 20 },
+            { x: 500, y: 480, w: 150, h: 20 },
+            { x: 800, y: 480, w: 150, h: 20 },
+            
+            // Mid Platforms (Different Widths)
+            { x: 350, y: 380, w: 100, h: 20 },
+            { x: 650, y: 380, w: 200, h: 20 },
+            { x: 950, y: 380, w: 100, h: 20 },
+
+            // High Platforms
+            { x: 200, y: 280, w: 120, h: 20 },
+            { x: 800, y: 280, w: 120, h: 20 },
+            
+            // Top Center
+            { x: 500, y: 200, w: 250, h: 20 },
+            
+            // Staircase Effect
+            { x: 1100, y: 430, w: 80, h: 20 },
+            { x: 1200, y: 350, w: 80, h: 20 },
+            { x: 1300, y: 270, w: 80, h: 20 },
+        ];
+
+        platformDefs.forEach(p => {
+            const platform = Bodies.rectangle(p.x, p.y, p.w, p.h, { 
+                isStatic: true,
+                friction: 0.5,
+                render: { fillStyle: '#654321' }
+            });
+            Composite.add(world, platform);
+        });
+
+        // ===========================
+        // PLAYER SETUP
+        // ===========================
+        function createLocalPlayer() {
+            const startX = 100 + Math.random() * 200;
+            
+            localBody = Bodies.rectangle(startX, 300, PLAYER_SIZE, PLAYER_SIZE, {
+                inertia: Infinity, 
+                friction: 0,       
+                frictionStatic: 0, 
+                frictionAir: 0.02,
+                restitution: 0,
+                allowSleep: false, 
+                label: 'localPlayer',
+                render: { fillStyle: 'hsl(' + Math.random() * 360 + ', 100%, 50%)' }
+            });
+            Composite.add(world, localBody);
+        }
+
+        // ===========================
+        // INPUTS
+        // ===========================
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'ArrowLeft' || e.code === 'KeyA') keys.left = true;
+            if (e.code === 'ArrowRight' || e.code === 'KeyD') keys.right = true;
+            if (e.code === 'ArrowUp' || e.code === 'Space' || e.code === 'KeyW') keys.up = true;
+        });
+        window.addEventListener('keyup', (e) => {
+            if (e.code === 'ArrowLeft' || e.code === 'KeyA') keys.left = false;
+            if (e.code === 'ArrowRight' || e.code === 'KeyD') keys.right = false;
+            if (e.code === 'ArrowUp' || e.code === 'Space' || e.code === 'KeyW') keys.up = false;
+        });
+        
+        const setupTouch = (id, key) => {
+            const btn = document.getElementById(id);
+            if(btn) {
+                btn.addEventListener('touchstart', (e) => { e.preventDefault(); keys[key] = true; });
+                btn.addEventListener('touchend', (e) => { e.preventDefault(); keys[key] = false; });
+                btn.addEventListener('touchcancel', (e) => { e.preventDefault(); keys[key] = false; });
+                btn.addEventListener('mouseleave', (e) => { if(keys[key]) keys[key] = false; });
+            }
+        };
+        setupTouch('btnLeft', 'left');
+        setupTouch('btnRight', 'right');
+        setupTouch('btnJump', 'up'); 
+
+        // ===========================
+        // NETWORK
+        // ===========================
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                currentUser = user;
+                myId = user.uid;
+                
+                createLocalPlayer();
+
+                const myRef = ref(db, `game_players/${roomId}/${myId}`);
+                onDisconnect(myRef).remove(); 
+                document.getElementById('roomTitle').textContent = "Room: " + roomId;
+                
+                // 1. Player Sync
+                onValue(ref(db, `game_players/${roomId}`), (snap) => {
+                    const data = snap.val() || {};
+                    
+                    if (data[myId]) {
+                        const myRemote = data[myId];
+                        // Sync push
+                        if (myRemote.lastUpdatedBy && myRemote.lastUpdatedBy !== myId && localBody) {
+                            Body.setPosition(localBody, { x: myRemote.x, y: localBody.position.y });
+                        }
+                    }
+
+                    for (let id in data) {
+                        if (id === myId) continue; 
+                        
+                        remoteData[id] = data[id]; 
+
+                        if (!remoteBodies[id]) {
+                            const ghost = Bodies.rectangle(data[id].x, data[id].y, PLAYER_SIZE, PLAYER_SIZE, {
+                                isStatic: true, 
+                                label: 'remotePlayer',
+                                plugin: { id: id }, 
+                                render: { fillStyle: data[id].color }
+                            });
+                            remoteBodies[id] = ghost;
+                            Composite.add(world, ghost);
+                        }
+                    }
+
+                    for (let id in remoteBodies) {
+                        if (!data[id]) {
+                            Composite.remove(world, remoteBodies[id]);
+                            delete remoteBodies[id];
+                            delete remoteData[id];
+                        }
+                    }
+                    
+                    document.getElementById('playerCount').textContent = Object.keys(remoteBodies).length + 1;
+                });
+
+                // 2. Coin Sync
+                onValue(ref(db, `game_coins/${roomId}`), (snap) => {
+                    coins = snap.val() || {};
+                    document.getElementById('coinCount').textContent = Object.keys(coins).length;
+                });
+
+                requestAnimationFrame(gameLoop);
+                setInterval(sendUpdate, 50); 
+            } else {
+                signInAnonymously(auth);
+            }
+        });
+
+        function sendUpdate() {
+            if (!myId || !localBody) return;
+            update(ref(db, `game_players/${roomId}/${myId}`), {
+                x: Math.round(localBody.position.x),
+                y: Math.round(localBody.position.y),
+                color: localBody.render.fillStyle,
+                lastUpdatedBy: myId,
+                score: myScore 
+            });
+        }
+
+        // ===========================
+        // GAME LOOP
+        // ===========================
+        function gameLoop() {
+            if (!localBody) return;
+
+            const speed = 5;
+            const pushSpeed = 2; 
+            let velocityX = localBody.velocity.x;
+
+            if (keys.left) velocityX = -speed;
+            else if (keys.right) velocityX = speed;
+            else velocityX *= 0.9; 
+
+            // 1. Check Push Collision
+            const pushState = handlePushInteractions(); 
+            
+            if (pushState.isPushing) {
+                if (pushState.dir > 0 && velocityX > pushSpeed) velocityX = pushSpeed;
+                if (pushState.dir < 0 && velocityX < -pushSpeed) velocityX = -pushSpeed;
+            }
+
+            // 2. Jump Logic
+            if (keys.up && isGrounded) {
+                Body.setVelocity(localBody, { x: velocityX, y: -16 }); 
+                isGrounded = false; 
+            } else {
+                Body.setVelocity(localBody, { x: velocityX, y: localBody.velocity.y });
+            }
+
+            // 3. Interpolate Remote Players
+            for (let id in remoteBodies) {
+                const body = remoteBodies[id];
+                const target = remoteData[id];
+                if (target) {
+                    const newX = body.position.x + (target.x - body.position.x) * 0.2;
+                    const newY = body.position.y + (target.y - body.position.y) * 0.2;
+                    Body.setPosition(body, { x: newX, y: newY });
+                }
+            }
+
+            // 4. Physics Step
+            isGrounded = false; 
+            Engine.update(engine, 1000 / 60);
+            checkGroundRaycast(); 
+            
+            // 5. Game Logic
+            checkCoins();
+            spawnCoins();
+
+            draw();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        function checkGroundRaycast() {
+            if (!localBody) return;
+            const buffer = 5; 
+            const feetY = localBody.bounds.max.y + buffer;
+            const leftX = localBody.bounds.min.x + 5;
+            const rightX = localBody.bounds.max.x - 5;
+            
+            const candidates = Composite.allBodies(world).filter(b => b !== localBody);
+            const hitLeft = Query.point(candidates, { x: leftX, y: feetY }).length > 0;
+            const hitRight = Query.point(candidates, { x: rightX, y: feetY }).length > 0;
+
+            if(hitLeft || hitRight) isGrounded = true;
+        }
+
+        function checkCoins() {
+            if (!localBody) return;
+            for (let id in coins) {
+                const c = coins[id];
+                const dx = localBody.position.x - c.x;
+                const dy = localBody.position.y - c.y;
+                if (dx*dx + dy*dy < 900) { 
+                    remove(ref(db, `game_coins/${roomId}/${id}`));
+                    myScore++;
+                    sendUpdate(); 
+                }
+            }
+        }
+
+        function spawnCoins() {
+            const count = Object.keys(coins).length;
+            if (count < 20 && Math.random() < 0.01) {
+                const plat = platformDefs[Math.floor(Math.random() * platformDefs.length)];
+                const coinX = plat.x - (plat.w/2) + 20 + Math.random() * (plat.w - 40);
+                const coinY = plat.y - (plat.h/2) - 15; 
+                
+                push(ref(db, `game_coins/${roomId}`), { x: Math.round(coinX), y: Math.round(coinY) });
+            }
+        }
+
+        function handlePushInteractions() {
+            let isPushing = false;
+            let dir = 0;
+
+            const collisions = Query.collides(localBody, Object.values(remoteBodies));
+            
+            collisions.forEach(col => {
+                const otherBody = (col.bodyA === localBody) ? col.bodyB : col.bodyA;
+                const otherId = otherBody.plugin.id;
+
+                const dx = otherBody.position.x - localBody.position.x;
+                
+                let pushingInstance = false;
+                if (dx > 0 && keys.right) { 
+                     pushingInstance = true;
+                     dir = 1;
+                } else if (dx < 0 && keys.left) { 
+                     pushingInstance = true;
+                     dir = -1;
+                }
+
+                if (pushingInstance) {
+                    isPushing = true;
+                    
+                    const now = Date.now();
+                    if (now - lastPushTime > PUSH_INTERVAL) {
+                        lastPushTime = now;
+                        const pushDir = keys.right ? 1 : -1;
+                        const targetPos = remoteData[otherId].x + (pushDir * 6); 
+
+                        update(ref(db, `game_players/${roomId}/${otherId}`), {
+                            x: Math.round(targetPos),
+                            lastUpdatedBy: myId
+                        });
+                    }
+                }
+            });
+            
+            return { isPushing, dir };
+        }
+
+        function draw() {
+            ctx.fillStyle = "#87CEEB";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.save();
+            const bodies = Composite.allBodies(world);
+            
+            bodies.forEach(body => {
+                if (body.render.visible === false) return;
+
+                ctx.beginPath();
+                const vertices = body.vertices;
+                ctx.moveTo(vertices[0].x, vertices[0].y);
+                for (let j = 1; j < vertices.length; j += 1) {
+                    ctx.lineTo(vertices[j].x, vertices[j].y);
+                }
+                ctx.lineTo(vertices[0].x, vertices[0].y);
+                
+                ctx.fillStyle = body.render.fillStyle || '#000';
+                ctx.fill();
+                ctx.lineWidth = 1;
+                ctx.strokeStyle = '#333';
+                ctx.stroke();
+
+                // Draw Scores Only
+                if (body.label === 'remotePlayer' || body.label === 'localPlayer') {
+                    ctx.fillStyle = "#000";
+                    ctx.font = "bold 14px Arial";
+                    ctx.textAlign = "center";
+                    
+                    let score = 0;
+                    if (body.label === 'localPlayer') {
+                        score = myScore;
+                    } else if (body.plugin && body.plugin.id && remoteData[body.plugin.id]) {
+                        score = remoteData[body.plugin.id].score || 0;
+                    }
+
+                    // Gold color for score
+                    ctx.fillStyle = "#FFD700"; 
+                    ctx.strokeStyle = "black";
+                    ctx.lineWidth = 3;
+                    ctx.strokeText("" + score, body.position.x, body.position.y - 25);
+                    ctx.fillText("" + score, body.position.x, body.position.y - 25);
+                }
+            });
+
+            for (let id in coins) {
+                const c = coins[id];
+                ctx.beginPath();
+                ctx.arc(c.x, c.y, 8, 0, 2 * Math.PI);
+                ctx.fillStyle = "#FFD700"; 
+                ctx.fill();
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = "#DAA520"; 
+                ctx.stroke();
+            }
+
+            ctx.restore();
+        }
+    </script>
+</body>
+</html>

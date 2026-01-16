@@ -1,0 +1,1345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QuickSeat - Seating Plan</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom grid background */
+        .classroom-bg {
+            background-color: #f8fafc;
+            background-image: 
+                linear-gradient(#e2e8f0 1px, transparent 1px),
+                linear-gradient(90deg, #e2e8f0 1px, transparent 1px);
+            background-size: 40px 40px;
+        }
+        
+        /* Draggable card styling */
+        .student-card {
+            touch-action: none;
+            user-select: none;
+            transition: box-shadow 0.2s, transform 0.1s;
+        }
+        
+        .student-card:active {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
+            z-index: 50;
+            cursor: grabbing;
+        }
+
+        /* Furniture Styling */
+        .furniture-item {
+            touch-action: none;
+            user-select: none;
+            transition: box-shadow 0.2s;
+            position: absolute;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: bold;
+            color: rgba(0,0,0,0.6);
+            border: 2px solid rgba(0,0,0,0.1);
+            z-index: 5; /* Below students */
+            cursor: grab;
+            text-align: center;
+            line-height: 1.1;
+            padding: 2px;
+            overflow: hidden;
+        }
+        .furniture-item:active {
+            cursor: grabbing;
+            z-index: 60; /* Top when moving */
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Furniture Resize Handle */
+        .furn-resize-handle {
+            width: 12px;
+            height: 12px;
+            background-color: #94a3b8;
+            border: 2px solid white;
+            position: absolute;
+            bottom: -6px;
+            right: -6px;
+            cursor: nwse-resize;
+            border-radius: 50%;
+            z-index: 70;
+            display: none; 
+            box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+        }
+        .furniture-item:hover .furn-resize-handle {
+            display: block;
+        }
+
+        /* Selection State */
+        .student-card.selected {
+            border-color: #f97316; /* Orange-500 */
+            border-width: 2px;
+            background-color: #fff7ed; /* Orange-50 */
+            z-index: 40;
+        }
+        
+        /* Room Boundary Styling */
+        .room-boundary {
+            position: absolute;
+            border: 2px dashed #94a3b8;
+            background-color: rgba(255, 255, 255, 0.5);
+            pointer-events: none; 
+            z-index: 0;
+        }
+        
+        .room-handle {
+            pointer-events: auto;
+            position: absolute;
+            z-index: 10;
+        }
+
+        .room-header {
+            pointer-events: auto;
+            cursor: grab;
+        }
+        .room-header:active {
+            cursor: grabbing;
+        }
+
+        .resize-handle {
+            width: 16px;
+            height: 16px;
+            bottom: -8px;
+            right: -8px;
+            background-color: #3b82f6;
+            border: 2px solid white;
+            border-radius: 50%;
+            cursor: nwse-resize;
+            pointer-events: auto;
+        }
+
+        /* Selection Box Styling */
+        #selection-box {
+            position: absolute;
+            border: 1px solid #3b82f6;
+            background-color: rgba(59, 130, 246, 0.2);
+            display: none;
+            pointer-events: none; /* Let mouse events pass through during drag */
+            z-index: 100;
+        }
+
+        /* Clean Status Badge */
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 6px;
+        }
+
+        /* Range Slider Styling */
+        input[type=range] {
+            height: 4px;
+            border-radius: 2px;
+            background: #e2e8f0;
+            outline: none;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col bg-white text-slate-800 overflow-hidden font-sans">
+
+    <!-- Top Navigation -->
+    <header class="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 z-20 shadow-sm shrink-0">
+        <div class="flex items-center gap-3">
+            <!-- Sidebar Toggle Button -->
+            <button onclick="window.toggleSidebar()" class="p-1.5 text-slate-500 hover:bg-slate-100 rounded transition -ml-1 mr-1" title="Toggle Sidebar">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+            </button>
+
+            <div class="bg-blue-600 text-white p-1.5 rounded">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
+                </svg>
+            </div>
+            <h1 class="font-bold text-lg tracking-tight hidden md:block">QuickSeat</h1>
+            
+            <!-- Room Controls -->
+            <div class="flex items-center ml-2 border-l border-slate-200 pl-4 gap-2">
+                <select id="room-selector" onchange="window.switchRoom(this.value)" class="text-sm border border-slate-300 rounded px-2 py-1.5 bg-slate-50 text-slate-700 font-medium hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100 transition cursor-pointer w-40">
+                    <option disabled>Loading...</option>
+                </select>
+                
+                <button onclick="window.createRoom()" class="bg-blue-100 hover:bg-blue-200 text-blue-700 p-1.5 rounded transition" title="Create New Room">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                </button>
+                
+                <button onclick="window.deleteRoom()" class="bg-red-50 hover:bg-red-100 text-red-600 p-1.5 rounded transition" title="Delete Current Room">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Display Controls -->
+            <div class="flex items-center gap-4 ml-4 px-4 border-l border-slate-200">
+                <div class="flex flex-col">
+                    <label class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Zoom</label>
+                    <input type="range" min="0.5" max="1.5" step="0.1" value="1" oninput="window.setZoom(this.value)" class="w-24">
+                </div>
+                <!-- Font Size Controls (Buttons) -->
+                <div class="flex flex-col items-center">
+                    <label class="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Font Size</label>
+                    <div class="flex items-center bg-slate-50 rounded border border-slate-200">
+                        <button onclick="window.changeFontSize(-1)" class="w-6 h-5 flex items-center justify-center hover:bg-slate-200 text-slate-600 font-bold rounded-l transition text-xs">-</button>
+                        <span id="font-size-display" class="w-8 text-xs text-center font-medium text-slate-700 select-none border-x border-slate-100 bg-white">12</span>
+                        <button onclick="window.changeFontSize(1)" class="w-6 h-5 flex items-center justify-center hover:bg-slate-200 text-slate-600 font-bold rounded-r transition text-xs">+</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="flex items-center gap-4">
+            <div id="status-badge" class="flex items-center px-3 py-1 rounded-full bg-slate-100 text-slate-500 text-xs font-medium transition-colors">
+                <span class="status-dot bg-slate-400" id="status-dot"></span>
+                <span id="status-text">Connecting...</span>
+            </div>
+        </div>
+    </header>
+
+    <div class="flex-1 flex overflow-hidden">
+        
+        <!-- Sidebar -->
+        <aside id="app-sidebar" class="w-60 bg-white border-r border-slate-200 flex flex-col z-10 shadow-[4px_0_24px_rgba(0,0,0,0.02)] overflow-y-auto transition-all duration-300">
+            <!-- Add Student Section -->
+            <div class="p-4 border-b border-slate-100 bg-slate-50/50">
+                <label class="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">Add Student</label>
+                <div class="flex gap-2 mb-2">
+                    <input type="text" id="student-input" 
+                        class="flex-1 border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm w-full"
+                        placeholder="Name..."
+                        onkeydown="if(event.key === 'Enter') handleAddStudent()">
+                    <button onclick="handleAddStudent()" 
+                        class="bg-blue-600 hover:bg-blue-700 text-white px-3 rounded text-sm font-medium transition shadow-sm">
+                        +
+                    </button>
+                </div>
+                <button onclick="toggleBatchModal(true)" class="text-xs text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                    Paste list
+                </button>
+            </div>
+
+            <!-- Unseated List (Takes up flexible space) -->
+            <div class="flex-1 p-4 bg-white min-h-[200px]" id="sidebar-container"
+                 ondragover="allowDrop(event)" ondrop="handleDropToSidebar(event)">
+                <h3 class="text-xs font-semibold text-slate-500 mb-3 flex items-center justify-between">
+                    Unseated
+                    <span id="unseated-count" class="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full text-[10px]">0</span>
+                </h3>
+                
+                <button onclick="window.autoSeatAll()" class="w-full text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 font-medium py-1.5 rounded mb-3 border border-slate-200 transition">
+                    Auto-Seat (Fill Room)
+                </button>
+
+                <div id="sidebar-list" class="space-y-2"></div>
+            </div>
+
+            <!-- Furniture Section (Moved to Bottom) -->
+            <div class="p-4 border-t border-slate-100 bg-white">
+                <label class="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">Furniture</label>
+                <div class="grid grid-cols-2 gap-2">
+                    <button onclick="window.addFurniture('desk')" class="text-xs border border-slate-200 bg-orange-50 hover:bg-orange-100 text-slate-700 py-2 rounded flex items-center justify-center gap-1">
+                        Desk
+                    </button>
+                    <button onclick="window.addFurniture('door')" class="text-xs border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 py-2 rounded flex items-center justify-center gap-1">
+                        Door
+                    </button>
+                    <button onclick="window.addFurniture('locker')" class="text-xs border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 py-2 rounded flex items-center justify-center gap-1">
+                        Locker
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Bottom Actions -->
+            <div class="p-4 border-t border-slate-100 flex flex-col gap-2">
+                <button onclick="window.clearCanvas()" class="w-full text-xs text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 font-medium py-2 rounded transition shadow-sm">
+                    Unseat All
+                </button>
+                <button onclick="window.clearUnseated()" class="w-full text-xs text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 font-medium py-2 rounded transition shadow-sm">
+                    Delete Unseated
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Canvas Wrapper -->
+        <main class="flex-1 relative overflow-auto bg-slate-100" id="main-scroll-area">
+            
+            <!-- Zoom Container (The "World") -->
+            <div id="zoom-container" 
+                 class="classroom-bg origin-top-left relative shadow-sm bg-white" 
+                 style="width: 3000px; height: 2000px; transform: scale(1);"
+                 ondragover="allowDrop(event)" ondrop="handleDropToCanvas(event)">
+                
+                <!-- Selection Box -->
+                <div id="selection-box"></div>
+
+                <!-- Room Boundary Box -->
+                <div id="room-boundary" class="room-boundary" style="left: 40px; top: 40px; width: 800px; height: 600px;">
+                    <div id="room-header" class="room-header absolute -top-6 left-0 bg-slate-400 text-white text-[10px] px-2 py-0.5 rounded-t font-bold tracking-wider uppercase flex items-center gap-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                        </svg>
+                        Classroom Area
+                    </div>
+                    <div id="room-resize" class="resize-handle room-handle" title="Drag to resize"></div>
+                </div>
+
+                <!-- Items injected here absolutely -->
+
+            </div>
+        </main>
+    </div>
+
+    <!-- Hidden Drag Ghost Container -->
+    <div id="drag-ghost" class="absolute top-[-2000px] left-[-2000px] bg-transparent pointer-events-none" style="z-index: 9999;"></div>
+
+    <!-- Batch Import Modal -->
+    <div id="batch-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-[9999] backdrop-blur-sm">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-96 max-w-full m-4">
+            <h3 class="font-bold text-lg mb-2 text-slate-800">Batch Import</h3>
+            <p class="text-sm text-slate-500 mb-3">Paste your name list below (one name per line).</p>
+            <textarea id="batch-input" class="w-full h-48 border border-slate-300 rounded p-3 text-sm mb-4 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none" placeholder="Alice Smith&#10;Bob Jones&#10;Charlie Brown"></textarea>
+            <div class="flex justify-end gap-2">
+                <button onclick="toggleBatchModal(false)" class="text-slate-500 hover:text-slate-700 hover:bg-slate-100 px-4 py-2 rounded text-sm transition font-medium">Cancel</button>
+                <button onclick="processBatchImport()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm transition font-medium shadow-sm">Import Names</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirm-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-[9999] backdrop-blur-sm">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-80 max-w-full m-4">
+            <h3 class="font-bold text-lg mb-2 text-slate-800" id="confirm-title">Confirm Action</h3>
+            <p class="text-sm text-slate-500 mb-4" id="confirm-desc">Are you sure you want to proceed?</p>
+            <div class="flex justify-end gap-2">
+                <button onclick="window.closeConfirm()" class="text-slate-500 hover:text-slate-700 hover:bg-slate-100 px-4 py-2 rounded text-sm transition font-medium">Cancel</button>
+                <button onclick="window.performConfirm()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded text-sm transition font-medium shadow-sm">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Logic -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getDatabase, ref, set, onValue, remove, child } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+        // --- CONFIG ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyA_fWr3H2SGIWlvG9BddNCwDe_tL-8oZw0",
+            authDomain: "fwft-dis.firebaseapp.com",
+            projectId: "fwft-dis",
+            storageBucket: "fwft-dis.firebasestorage.app",
+            messagingSenderId: "641699421448",
+            appId: "1:641699421448:web:48ed115f2185a93aa2a0bd",
+            measurementId: "G-KJK08LFTGW"
+        };
+
+        // --- INIT ---
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app); 
+        const auth = getAuth(app);
+        
+        let currentRoomId = "room_101"; 
+        let currentRoomRef = ref(db, 'classrooms/' + currentRoomId);
+        let syncUnsubscribe = null;
+        
+        const metaRef = ref(db, 'classrooms_meta');
+        let availableRooms = {};
+
+        // --- STATE ---
+        let students = [];
+        let furniture = []; 
+        let room = { x: 40, y: 40, width: 800, height: 600 };
+
+        // Selection State
+        let selectedIds = new Set();
+        let isSelecting = false;
+        let selectionStart = { x: 0, y: 0 }; 
+
+        // Drag State
+        let isDragging = false;
+        let dragId = null;
+        let dragType = null; 
+        let dragOffset = { x: 0, y: 0 };
+        let groupDragOrigins = {}; 
+
+        let confirmCallback = null;
+        let currentZoom = 1;
+        let currentFontSize = 12;
+
+        let isResizingFurn = false;
+        let furnResizeId = null;
+        let furnStartDims = { w: 0, h: 0, x: 0, y: 0 }; 
+        let furnDragStart = { x: 0, y: 0 };
+
+        let isResizingRoom = false;
+        let isMovingRoom = false;
+        let roomDragStart = { x: 0, y: 0 }; 
+        let roomStartDims = { w: 0, h: 0, x: 0, y: 0 }; 
+
+        // --- AUTH & SYNC ---
+        signInAnonymously(auth)
+            .then(() => {
+                initMetaSync(); 
+                startSync();    
+            })
+            .catch((error) => {
+                console.error("Auth Error", error);
+                updateStatus("Auth Error", "red");
+            });
+
+        function initMetaSync() {
+            onValue(metaRef, (snapshot) => {
+                const data = snapshot.val() || {};
+                availableRooms = data;
+                if (Object.keys(availableRooms).length === 0) {
+                    set(ref(db, 'classrooms_meta/room_101'), "Room 101");
+                    return; 
+                }
+                renderRoomSelector();
+                if (!availableRooms[currentRoomId]) {
+                    const firstId = Object.keys(availableRooms)[0];
+                    if (firstId) window.switchRoom(firstId);
+                }
+            });
+        }
+
+        function renderRoomSelector() {
+            const selector = document.getElementById('room-selector');
+            selector.innerHTML = '';
+            Object.entries(availableRooms).forEach(([id, name]) => {
+                const option = document.createElement('option');
+                option.value = id;
+                option.innerText = name;
+                option.selected = (id === currentRoomId);
+                selector.appendChild(option);
+            });
+        }
+
+        // --- UI TOGGLES ---
+        window.toggleSidebar = function() {
+            const sidebar = document.getElementById('app-sidebar');
+            sidebar.classList.toggle('hidden');
+        };
+
+        window.createRoom = function() {
+            const name = prompt("Enter new room name:");
+            if (!name) return;
+            const newId = 'room_' + Date.now();
+            set(ref(db, 'classrooms_meta/' + newId), name).then(() => window.switchRoom(newId));
+        };
+
+        window.deleteRoom = function() {
+            if (!availableRooms || Object.keys(availableRooms).length <= 1) {
+                alert("Cannot delete the last room. Create another room first.");
+                return;
+            }
+            window.showConfirm(
+                "Delete Room", 
+                `Are you sure you want to delete "${availableRooms[currentRoomId]}"?`,
+                () => {
+                    const idToDelete = currentRoomId;
+                    remove(ref(db, 'classrooms_meta/' + idToDelete))
+                    .then(() => remove(ref(db, 'classrooms/' + idToDelete)));
+                }
+            );
+        };
+
+        window.switchRoom = function(newRoomId) {
+            if (newRoomId === currentRoomId) return;
+            currentRoomId = newRoomId;
+            students = [];
+            furniture = [];
+            selectedIds.clear();
+            render();
+            // --- FIX: Update UI dropdown immediately ---
+            renderRoomSelector();
+            startSync();
+        };
+
+        function startSync() {
+            updateStatus("Connecting...", "blue");
+            if (syncUnsubscribe) syncUnsubscribe(); 
+
+            currentRoomRef = ref(db, 'classrooms/' + currentRoomId);
+
+            syncUnsubscribe = onValue(currentRoomRef, (snapshot) => {
+                const data = snapshot.val();
+                if (data) {
+                    students = data.students || [];
+                    furniture = data.furniture || [];
+                    if (data.room) room = data.room;
+                    render();
+                    updateStatus("Online", "green");
+                } else {
+                    students = [];
+                    furniture = [];
+                    room = { x: 40, y: 40, width: 800, height: 600 };
+                    render();
+                    saveState(); 
+                    updateStatus("Ready (New)", "green");
+                }
+            }, (err) => {
+                console.error(err);
+                updateStatus("Error", "red");
+            });
+        }
+
+        async function saveState() {
+            updateStatus("Saving...", "yellow");
+            try {
+                // Sanitize Students
+                const cleanStudents = students.map(s => ({
+                    id: s.id,
+                    name: s.name,
+                    x: s.x ?? null,
+                    y: s.y ?? null,
+                    rotation: s.rotation ?? 0 
+                }));
+                // Sanitize Furniture
+                const cleanFurniture = furniture.map(f => ({
+                    id: f.id,
+                    type: f.type,
+                    name: f.name || null,
+                    x: f.x,
+                    y: f.y,
+                    width: f.width,
+                    height: f.height,
+                    rotation: f.rotation || 0
+                }));
+
+                await set(currentRoomRef, {
+                    students: cleanStudents,
+                    furniture: cleanFurniture,
+                    room: room, 
+                    lastUpdated: new Date().toISOString()
+                });
+                updateStatus("Online", "green");
+            } catch (e) {
+                console.error(e);
+                updateStatus("Save Failed", "red");
+            }
+        }
+
+        // --- FURNITURE ---
+        window.addFurniture = function(type) {
+            let width = 80, height = 40, color = "#e2e8f0";
+            let name = "Item";
+            
+            if (type === 'desk') { width = 120; height = 80; color = "#fcd34d"; name = "Teacher Desk"; } 
+            if (type === 'door') { width = 40; height = 80; color = "#94a3b8"; name = "Door"; } 
+            if (type === 'locker') { width = 40; height = 40; color = "#cbd5e1"; name = "Locker"; } 
+            if (type === 'obstacle') { width = 80; height = 80; color = "#64748b"; name = "Obstacle"; }
+
+            const f = {
+                id: 'furn_' + Date.now(),
+                type: type,
+                name: name,
+                x: room.x + room.width/2 - width/2,
+                y: room.y + room.height/2 - height/2,
+                width: width,
+                height: height,
+                rotation: 0,
+                color: color
+            };
+            
+            f.x = Math.round(f.x / 40) * 40;
+            f.y = Math.round(f.y / 40) * 40;
+
+            furniture.push(f);
+            render();
+            saveState();
+        };
+
+        window.renameFurniture = function(id) {
+            const f = furniture.find(x => x.id === id);
+            if(!f) return;
+            const newName = prompt("Rename furniture:", f.name || f.type);
+            if(newName) {
+                f.name = newName;
+                render();
+                saveState();
+            }
+        };
+
+        window.deleteFurniture = function(e, id) {
+            e.stopPropagation();
+            furniture = furniture.filter(f => f.id !== id);
+            render();
+            saveState();
+        };
+
+        // --- RENDER ---
+        function render() {
+            renderRoom(); 
+
+            const sidebar = document.getElementById('sidebar-list');
+            const canvas = document.getElementById('zoom-container');
+            const countBadge = document.getElementById('unseated-count');
+
+            if (!sidebar || !canvas) return;
+
+            sidebar.innerHTML = '';
+            // Clear canvas items (except core UI elements)
+            Array.from(canvas.children).forEach(child => {
+                if (child.id !== 'canvas-instruction' && 
+                    child.id !== 'room-boundary' && 
+                    child.id !== 'selection-box' && 
+                    child.id !== 'drag-ghost') {
+                    child.remove();
+                }
+            });
+
+            // 1. Render Furniture
+            furniture.forEach(f => {
+                const el = document.createElement('div');
+                el.className = 'furniture-item rounded shadow-sm group';
+                el.style.left = `${f.x}px`;
+                el.style.top = `${f.y}px`;
+                el.style.width = `${f.width}px`;
+                el.style.height = `${f.height}px`;
+                
+                el.style.backgroundColor = f.color || '#e2e8f0';
+                
+                if (f.type === 'desk') {
+                    el.style.backgroundColor = '#fde68a';
+                    el.style.border = '2px solid #d97706';
+                } else if (f.type === 'door') {
+                    el.style.backgroundColor = '#fff';
+                    el.style.border = '2px solid #94a3b8';
+                    el.style.borderStyle = 'dashed'; 
+                } else if (f.type === 'locker') {
+                    el.style.backgroundColor = '#e2e8f0';
+                    el.style.border = '2px solid #64748b';
+                } else {
+                    el.style.backgroundColor = '#cbd5e1';
+                }
+                
+                el.innerText = f.name || f.type;
+
+                // Resize Handle
+                const resizer = document.createElement('div');
+                resizer.className = 'furn-resize-handle';
+                resizer.onmousedown = (e) => {
+                    e.stopPropagation(); // Stop event bubbling
+                    e.preventDefault();  // Stop native Drag-and-Drop from firing
+                    isResizingFurn = true;
+                    furnResizeId = f.id;
+                    furnDragStart = { x: e.clientX, y: e.clientY };
+                    furnStartDims = { w: f.width, h: f.height, x: f.x, y: f.y };
+                };
+                el.appendChild(resizer);
+
+                el.draggable = true;
+                el.addEventListener('dragstart', (e) => handleFurnitureDragStart(e, f));
+                el.addEventListener('dragend', () => { isDragging = false; });
+                
+                // Click (for delete focus, no rotate)
+                el.onclick = () => {
+                   // No action on single click for furniture now
+                };
+
+                // Double click to rename - FIX SYNTAX
+                el.ondblclick = (e) => {
+                    e.stopPropagation();
+                    window.renameFurniture(f.id);
+                };
+                
+                // Delete button
+                const delBtn = document.createElement('button');
+                delBtn.className = 'absolute -top-2 -right-2 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center text-[10px] hidden group-hover:block';
+                delBtn.innerText = '×';
+                delBtn.onclick = (e) => window.deleteFurniture(e, f.id);
+                
+                el.appendChild(delBtn);
+
+                canvas.appendChild(el);
+            });
+
+            // 2. Render Students
+            let unseated = 0;
+            students.forEach(student => {
+                const isSeated = (student.x !== null && student.x !== undefined);
+                const rotation = student.rotation || 0;
+                const isSelected = selectedIds.has(student.id);
+                
+                const el = document.createElement('div');
+                el.id = `s-${student.id}`;
+                el.draggable = true;
+                
+                let className = `student-card bg-white border border-slate-200 shadow-sm rounded-md flex items-center justify-center group hover:border-blue-400 hover:shadow-md cursor-grab active:cursor-grabbing relative select-none`;
+                
+                if (isSeated && rotation === 90) className += " px-0.5 py-1";
+                else className += " px-2 py-1";
+                
+                if (isSelected) className += " selected"; 
+
+                el.className = className;
+                
+                if (isSeated) {
+                    el.onclick = (e) => {
+                        if (isDragging) return;
+                        if (e.ctrlKey || e.metaKey) {
+                            window.handleStudentClick(e, student.id);
+                        } else {
+                            window.rotateStudent(student.id);
+                            selectedIds.clear();
+                            selectedIds.add(student.id);
+                            document.querySelectorAll('.student-card.selected').forEach(el => el.classList.remove('selected'));
+                            e.currentTarget.classList.add('selected');
+                        }
+                    };
+                }
+
+                if (isSeated && rotation === 90) {
+                    el.classList.add('border-t-4', 'border-t-blue-500');
+                } else if (isSeated) {
+                    el.classList.add('border-l-4', 'border-l-blue-500');
+                }
+
+                const closeAction = isSeated ? `window.unseatStudent(event, '${student.id}')` : `window.removeStudent(event, '${student.id}')`;
+                
+                el.innerHTML = `
+                    <span style="font-size: ${currentFontSize}px; line-height: 1.1;" class="font-medium w-full text-center pointer-events-none break-words whitespace-normal">${student.name}</span>
+                    <button onclick="${closeAction}"
+                        class="absolute -top-2 -right-2 bg-white rounded-full border border-slate-200 w-5 h-5 flex items-center justify-center text-[10px] text-slate-400 hover:text-red-500 hover:border-red-200 shadow-sm opacity-0 group-hover:opacity-100 transition z-10">
+                        ×
+                    </button>
+                `;
+                el.addEventListener('dragstart', (e) => handleDragStart(e, student));
+                el.addEventListener('dragend', () => { isDragging = false; }); 
+
+                if (!isSeated) {
+                    el.classList.add('w-full', 'mb-2');
+                    sidebar.appendChild(el);
+                    unseated++;
+                } else {
+                    el.style.position = 'absolute';
+                    el.style.left = `${student.x}px`;
+                    el.style.top = `${student.y}px`;
+                    
+                    if (rotation === 90) {
+                        el.style.width = '40px'; 
+                        el.style.height = '80px';
+                    } else {
+                        el.style.width = '80px'; 
+                        el.style.height = '40px';
+                    }
+                    
+                    canvas.appendChild(el);
+                }
+            });
+
+            if (unseated === 0) {
+                const emptyState = document.createElement('div');
+                emptyState.className = 'text-center py-4 opacity-40 text-xs';
+                emptyState.innerText = 'No unseated students';
+                sidebar.appendChild(emptyState);
+            }
+            if (countBadge) countBadge.innerText = unseated;
+        }
+
+        // --- COLLISION CHECK HELPER ---
+        function checkCollision(rect, ignoreId) {
+            // 1. Check Students
+            for (const s of students) {
+                if (s.id === ignoreId || s.x === null) continue;
+                const sW = (s.rotation === 90) ? 40 : 80;
+                const sH = (s.rotation === 90) ? 80 : 40;
+                if (rect.x < s.x + sW && rect.x + rect.w > s.x &&
+                    rect.y < s.y + sH && rect.y + rect.h > s.y) {
+                    return { type: 'student', item: s };
+                }
+            }
+            // 2. Check Furniture
+            for (const f of furniture) {
+                if (f.id === ignoreId) continue;
+                if (rect.x < f.x + f.width && rect.x + rect.w > f.x &&
+                    rect.y < f.y + f.height && rect.y + rect.h > f.y) {
+                    return { type: 'furniture', item: f };
+                }
+            }
+            return null;
+        }
+
+        // --- AUTO SEAT (UPDATED) ---
+        window.autoSeatAll = function() {
+            const unseated = students.filter(s => s.x === null || s.x === undefined);
+            if (unseated.length === 0) {
+                alert("No unseated students to arrange.");
+                return;
+            }
+
+            const GRID = 40;
+            const deskW = 80;
+            const deskH = 40;
+            const gapX = 40; 
+            const gapY = 40; 
+            const marginX = 20; 
+            const marginY = 30; 
+
+            let startX = Math.ceil((room.x + marginX) / GRID) * GRID;
+            let startY = Math.ceil((room.y + marginY) / GRID) * GRID;
+            const rightLimit = room.x + room.width - marginX;
+            const bottomLimit = room.y + room.height - marginX;
+
+            let nextX = startX;
+            let nextY = startY;
+
+            unseated.forEach(student => {
+                let placed = false;
+                let attempts = 0;
+                
+                while (!placed && attempts < 2000) {
+                    attempts++;
+                    if (nextX + deskW > rightLimit) {
+                        nextX = startX; 
+                        nextY += deskH + gapY; 
+                    }
+                    if (nextY + deskH > bottomLimit) break; 
+
+                    // Use unified collision check
+                    const rect = { x: nextX, y: nextY, w: deskW, h: deskH };
+                    const collision = checkCollision(rect, student.id);
+
+                    if (!collision) {
+                        student.x = nextX;
+                        student.y = nextY;
+                        student.rotation = 0;
+                        placed = true;
+                    }
+
+                    if (placed) {
+                        nextX += deskW + gapX;
+                        break; 
+                    } else {
+                        nextX += deskW + gapX;
+                    }
+                }
+            });
+
+            render();
+            saveState();
+        };
+
+        // --- DRAG (FURNITURE) ---
+        function handleFurnitureDragStart(e, item) {
+            // Safety check: Cancel drag if we are actually resizing
+            if (isResizingFurn) {
+                e.preventDefault();
+                return;
+            }
+            
+            isDragging = true;
+            dragId = item.id;
+            dragType = 'furniture';
+            const rect = e.target.getBoundingClientRect();
+            dragOffset.x = e.clientX - rect.left;
+            dragOffset.y = e.clientY - rect.top;
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', item.id);
+        }
+
+        // --- DRAG (STUDENTS) ---
+        function createDragGhost(e) { 
+            if (selectedIds.size <= 1) return; 
+            const ghost = document.getElementById('drag-ghost');
+            ghost.innerHTML = '';
+            let minX = Infinity, minY = Infinity;
+            let maxX = -Infinity, maxY = -Infinity;
+            const selectedStudents = [];
+            selectedIds.forEach(id => {
+                const s = students.find(st => st.id === id);
+                if (s && s.x !== null) {
+                    selectedStudents.push(s);
+                    minX = Math.min(minX, s.x);
+                    minY = Math.min(minY, s.y);
+                    const w = (s.rotation === 90) ? 40 : 80;
+                    const h = (s.rotation === 90) ? 80 : 40;
+                    maxX = Math.max(maxX, s.x + w);
+                    maxY = Math.max(maxY, s.y + h);
+                }
+            });
+            if (selectedStudents.length === 0) return;
+            const width = maxX - minX;
+            const height = maxY - minY;
+            ghost.style.width = `${width}px`;
+            ghost.style.height = `${height}px`;
+            ghost.style.transform = `scale(${currentZoom})`;
+            ghost.style.transformOrigin = 'top left';
+            selectedStudents.forEach(s => {
+                const div = document.createElement('div');
+                const w = (s.rotation === 90) ? 40 : 80;
+                const h = (s.rotation === 90) ? 80 : 40;
+                div.className = 'absolute border border-slate-300 bg-white shadow-sm flex items-center justify-center text-[10px] font-bold text-slate-500 overflow-hidden rounded-md opacity-90';
+                div.innerText = s.name;
+                div.style.left = `${s.x - minX}px`;
+                div.style.top = `${s.y - minY}px`;
+                div.style.width = `${w}px`;
+                div.style.height = `${h}px`;
+                if(s.rotation === 90) div.classList.add('border-t-4', 'border-t-blue-400');
+                else div.classList.add('border-l-4', 'border-l-blue-400');
+                ghost.appendChild(div);
+            });
+            const leader = students.find(s => s.id === dragId);
+            if(!leader) return; // safety
+            const leaderGhostX = leader.x - minX;
+            const leaderGhostY = leader.y - minY;
+            const setX = (leaderGhostX * currentZoom) + dragOffset.x;
+            const setY = (leaderGhostY * currentZoom) + dragOffset.y;
+            e.dataTransfer.setDragImage(ghost, setX, setY);
+        }
+
+        function handleDragStart(e, student) {
+            isDragging = true;
+            dragId = student.id;
+            dragType = 'student';
+            
+            if (!selectedIds.has(student.id)) {
+                selectedIds.clear();
+                document.querySelectorAll('.student-card.selected').forEach(el => el.classList.remove('selected'));
+            }
+
+            groupDragOrigins = {};
+            const leader = students.find(s => s.id === dragId);
+            const leaderX = leader.x || 0;
+            const leaderY = leader.y || 0;
+
+            selectedIds.forEach(id => {
+                const s = students.find(st => st.id === id);
+                if (s && s.x !== null) {
+                    groupDragOrigins[id] = { offsetX: s.x - leaderX, offsetY: s.y - leaderY };
+                }
+            });
+
+            const rect = e.target.getBoundingClientRect();
+            dragOffset.x = e.clientX - rect.left;
+            dragOffset.y = e.clientY - rect.top;
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', student.id);
+
+            if (selectedIds.size > 1) createDragGhost(e);
+        }
+
+        window.allowDrop = function(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+        };
+
+        window.handleDropToCanvas = function(e) {
+            e.preventDefault();
+            
+            const world = document.getElementById('zoom-container');
+            const rect = world.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+            const clickY = e.clientY - rect.top;
+            const offX = dragOffset.x / currentZoom;
+            const offY = dragOffset.y / currentZoom;
+            const rawX = (clickX / currentZoom) - offX;
+            const rawY = (clickY / currentZoom) - offY;
+            const finalX = Math.max(0, Math.round(rawX / 40) * 40);
+            const finalY = Math.max(0, Math.round(rawY / 40) * 40);
+
+            // --- FURNITURE DROP ---
+            if (dragType === 'furniture') {
+                const fIndex = furniture.findIndex(f => f.id === dragId);
+                if (fIndex > -1) {
+                    furniture[fIndex].x = finalX;
+                    furniture[fIndex].y = finalY;
+                    render();
+                    saveState();
+                }
+                isDragging = false;
+                return;
+            }
+
+            // --- STUDENT DROP ---
+            const dragStudent = students.find(s => s.id === dragId);
+            if (!dragStudent) return;
+
+            const isGroup = selectedIds.size > 1;
+
+            if (isGroup) {
+                // Group Move (No Swap)
+                selectedIds.forEach(id => {
+                    const s = students.find(st => st.id === id);
+                    const offset = groupDragOrigins[id];
+                    if (s && offset) {
+                        const targetX = leaderFinalX + offset.offsetX;
+                        const targetY = leaderFinalY + offset.offsetY;
+                        
+                        if (targetX >= 0 && targetY >= 0) {
+                            student.x = targetX;
+                            student.y = targetY;
+                        }
+                    }
+                });
+            } else {
+                // Single Move (Check Collisions)
+                const rot = dragStudent.rotation || 0;
+                const dragW = rot === 90 ? 40 : 80;
+                const dragH = rot === 90 ? 80 : 40;
+                
+                const collision = checkCollision({x: finalX, y: finalY, w: dragW, h: dragH}, dragId);
+
+                if (collision) {
+                    if (collision.type === 'student') {
+                        // Swap with student
+                        const target = collision.item;
+                        const oldX = dragStudent.x ?? null;
+                        const oldY = dragStudent.y ?? null;
+                        dragStudent.x = target.x;
+                        dragStudent.y = target.y;
+                        target.x = oldX;
+                        target.y = oldY;
+                    } else {
+                        // Hit furniture -> Block/Bounce (don't move)
+                        console.log("Blocked by furniture");
+                    }
+                } else {
+                    // No collision
+                    dragStudent.x = finalX;
+                    dragStudent.y = finalY;
+                }
+            }
+
+            setTimeout(() => { isDragging = false; }, 100);
+            render();
+            saveState();
+        };
+
+        window.handleDropToSidebar = function(e) {
+            e.preventDefault();
+            if (dragType === 'furniture') {
+                // Delete furniture if dropped on sidebar
+                furniture = furniture.filter(f => f.id !== dragId);
+            } else {
+                if (selectedIds.size > 0) {
+                    selectedIds.forEach(id => {
+                        const idx = students.findIndex(s => s.id === id);
+                        if (idx !== -1) {
+                            students[idx].x = null;
+                            students[idx].y = null;
+                            students[idx].rotation = 0;
+                        }
+                    });
+                    selectedIds.clear(); 
+                } else {
+                    const idx = students.findIndex(s => s.id === dragId);
+                    if (idx !== -1) {
+                        students[idx].x = null;
+                        students[idx].y = null;
+                        students[idx].rotation = 0;
+                    }
+                }
+            }
+            render();
+            saveState();
+        };
+
+        // --- ROOM VISUALS ---
+        function renderRoom() {
+            const roomEl = document.getElementById('room-boundary');
+            if (roomEl) {
+                roomEl.style.left = `${room.x}px`;
+                roomEl.style.top = `${room.y}px`;
+                roomEl.style.width = `${room.width}px`;
+                roomEl.style.height = `${room.height}px`;
+            }
+        }
+
+        // --- INIT HELPERS ---
+        function updateStatus(msg, color) {
+            const text = document.getElementById('status-text');
+            const dot = document.getElementById('status-dot');
+            const badge = document.getElementById('status-badge');
+            if (text) text.innerText = msg;
+            const colors = {
+                green: { bg: 'bg-green-100', text: 'text-green-700', dot: 'bg-green-500' },
+                yellow: { bg: 'bg-amber-100', text: 'text-amber-700', dot: 'bg-amber-500' },
+                red: { bg: 'bg-red-100', text: 'text-red-700', dot: 'bg-red-500' },
+                blue: { bg: 'bg-blue-100', text: 'text-blue-700', dot: 'bg-blue-500' },
+                gray: { bg: 'bg-slate-100', text: 'text-slate-500', dot: 'bg-slate-400' }
+            };
+            const theme = colors[color] || colors.blue;
+            if (badge && dot) {
+                badge.className = `flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium transition-colors ${theme.bg} ${theme.text}`;
+                dot.className = `status-dot ${theme.dot}`;
+            }
+        }
+
+        // --- OTHER HELPERS ---
+        window.handleAddStudent = function() {
+            const input = document.getElementById('student-input');
+            const name = input.value.trim();
+            if (!name) return;
+            const newStudent = {
+                id: Date.now().toString(),
+                name: name,
+                x: null, y: null, rotation: 0
+            };
+            students.push(newStudent);
+            input.value = '';
+            render();
+            saveState();
+        };
+
+        window.removeStudent = function(e, id) { e.stopPropagation(); students = students.filter(s => s.id !== id); selectedIds.delete(id); render(); saveState(); };
+        window.unseatStudent = function(e, id) { e.stopPropagation(); const idx = students.findIndex(s => s.id === id); if (idx !== -1) { students[idx].x = null; students[idx].y = null; students[idx].rotation = 0; selectedIds.delete(id); render(); saveState(); } };
+        window.rotateStudent = function(id) { const idx = students.findIndex(s => s.id === id); if (idx !== -1) { const s = students[idx]; s.rotation = (s.rotation === 0 ? 90 : 0); render(); saveState(); } };
+        window.clearCanvas = function() { window.showConfirm("Unseat All", "Move all?", () => { students.forEach(s => { s.x = null; s.y = null; s.rotation = 0; }); selectedIds.clear(); render(); saveState(); }); };
+        
+        // --- FIXED: clearUnseated now robustly checks for null/undefined ---
+        window.clearUnseated = function() {
+            window.showConfirm(
+                "Delete Unseated", 
+                "Permanently delete all unseated students?", 
+                () => {
+                    // Keep students who ARE seated (x is not null AND x is not undefined)
+                    students = students.filter(s => s.x !== null && s.x !== undefined);
+                    render();
+                    saveState();
+                }
+            );
+        };
+        
+        // Modal / Import / Confirm logic repeated for completeness...
+        window.toggleBatchModal = function(show) { 
+            const el = document.getElementById('batch-modal'); 
+            const txt = document.getElementById('batch-input');
+            if(show) { el.classList.remove('hidden'); el.classList.add('flex'); txt.value=''; txt.focus(); }
+            else { el.classList.add('hidden'); el.classList.remove('flex'); }
+        };
+        window.processBatchImport = function() {
+            const raw = document.getElementById('batch-input').value;
+            if(!raw) { window.toggleBatchModal(false); return; }
+            const names = raw.split(/\n/).map(n=>n.trim()).filter(n=>n.length>0);
+            names.forEach(name => {
+                students.push({ id: Date.now() + Math.random().toString(), name: name, x: null, y: null, rotation: 0 });
+            });
+            window.toggleBatchModal(false);
+            render();
+            saveState();
+        };
+        window.showConfirm = function(title, desc, cb) {
+            document.getElementById('confirm-title').innerText = title;
+            document.getElementById('confirm-desc').innerText = desc;
+            confirmCallback = cb;
+            const el = document.getElementById('confirm-modal');
+            el.classList.remove('hidden'); el.classList.add('flex');
+        };
+        window.closeConfirm = function() { document.getElementById('confirm-modal').classList.add('hidden'); confirmCallback = null; };
+        window.performConfirm = function() { if(confirmCallback) confirmCallback(); window.closeConfirm(); };
+        window.setZoom = function(v) { currentZoom = parseFloat(v); renderZoom(); };
+        window.changeFontSize = function(d) { currentFontSize += d; if(currentFontSize<8) currentFontSize=8; if(currentFontSize>36) currentFontSize=36; document.getElementById('font-size-display').innerText=currentFontSize; render(); };
+        function renderZoom() { const c = document.getElementById('zoom-container'); if(c) c.style.transform=`scale(${currentZoom})`; }
+
+        // --- SELECTION BOX LOGIC ---
+        function initSelectionLogic() {
+            const container = document.getElementById('zoom-container');
+            const box = document.getElementById('selection-box');
+
+            window.addEventListener('dragstart', () => {
+                isSelecting = false;
+                if (box) box.style.display = 'none';
+            });
+
+            container.addEventListener('mousedown', (e) => {
+                if (e.target.closest('.student-card') || 
+                    e.target.closest('.furniture-item') || 
+                    e.target.closest('.room-header') || 
+                    e.target.closest('.resize-handle') || 
+                    e.target.closest('button')) {
+                    return;
+                }
+                
+                isSelecting = true;
+                
+                if(!e.target.closest('input') && !e.target.closest('textarea')) {
+                    e.preventDefault(); 
+                }
+                
+                const rect = container.getBoundingClientRect();
+                const x = (e.clientX - rect.left) / currentZoom;
+                const y = (e.clientY - rect.top) / currentZoom;
+                
+                selectionStart = { x, y };
+                
+                box.style.display = 'block';
+                box.style.left = `${x}px`;
+                box.style.top = `${y}px`;
+                box.style.width = '0px';
+                box.style.height = '0px';
+
+                if (!e.ctrlKey && !e.metaKey) {
+                    selectedIds.clear();
+                    document.querySelectorAll('.student-card.selected').forEach(el => {
+                        el.classList.remove('selected');
+                    });
+                }
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (!isSelecting) return;
+
+                const rect = container.getBoundingClientRect();
+                const currentX = (e.clientX - rect.left) / currentZoom;
+                const currentY = (e.clientY - rect.top) / currentZoom;
+
+                const left = Math.min(selectionStart.x, currentX);
+                const top = Math.min(selectionStart.y, currentY);
+                const width = Math.abs(currentX - selectionStart.x);
+                const height = Math.abs(currentY - selectionStart.y);
+
+                box.style.left = `${left}px`;
+                box.style.top = `${top}px`;
+                box.style.width = `${width}px`;
+                box.style.height = `${height}px`;
+            });
+
+            window.addEventListener('mouseup', () => {
+                if (!isSelecting) return;
+                isSelecting = false;
+                box.style.display = 'none';
+
+                const boxRect = {
+                    x: parseFloat(box.style.left),
+                    y: parseFloat(box.style.top),
+                    w: parseFloat(box.style.width),
+                    h: parseFloat(box.style.height)
+                };
+
+                if (boxRect.w > 5 || boxRect.h > 5) {
+                    students.forEach(s => {
+                        if (s.x === null || s.x === undefined) return;
+                        
+                        const sW = (s.rotation === 90) ? 40 : 80;
+                        const sH = (s.rotation === 90) ? 80 : 40;
+
+                        const intersect = (
+                            boxRect.x < s.x + sW &&
+                            boxRect.x + boxRect.w > s.x &&
+                            boxRect.y < s.y + sH &&
+                            boxRect.y + boxRect.h > s.y
+                        );
+
+                        if (intersect) {
+                            selectedIds.add(s.id);
+                        }
+                    });
+                    render();
+                }
+            });
+        }
+
+        // --- STUDENT CLICK SELECTION ---
+        window.handleStudentClick = function(e, id) {
+            if (isDragging) return; 
+            e.stopPropagation();
+
+            if (e.ctrlKey || e.metaKey) {
+                if (selectedIds.has(id)) selectedIds.delete(id);
+                else selectedIds.add(id);
+                render();
+            } else {
+                selectedIds.clear();
+                selectedIds.add(id);
+                render();
+            }
+        };
+
+        // --- ROOM INTERACTION SETUP ---
+        function initRoomInteractions() {
+            const header = document.getElementById('room-header');
+            const resizer = document.getElementById('room-resize');
+            
+            header.addEventListener('mousedown', (e) => {
+                isMovingRoom = true;
+                roomDragStart = { x: e.clientX, y: e.clientY };
+                roomStartDims = { ...room }; 
+                e.stopPropagation();
+            });
+
+            resizer.addEventListener('mousedown', (e) => {
+                isResizingRoom = true;
+                roomDragStart = { x: e.clientX, y: e.clientY };
+                roomStartDims = { ...room };
+                e.stopPropagation();
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                // Room Move
+                if (isMovingRoom) {
+                    const dx = (e.clientX - roomDragStart.x) / currentZoom;
+                    const dy = (e.clientY - roomDragStart.y) / currentZoom;
+                    const newX = Math.round((roomStartDims.x + dx) / 40) * 40;
+                    const newY = Math.round((roomStartDims.y + dy) / 40) * 40;
+                    room.x = Math.max(0, newX);
+                    room.y = Math.max(0, newY);
+                    renderRoom();
+                }
+                
+                // Room Resize
+                if (isResizingRoom) {
+                    const dx = (e.clientX - roomDragStart.x) / currentZoom;
+                    const dy = (e.clientY - roomDragStart.y) / currentZoom;
+                    const newW = Math.round((roomStartDims.width + dx) / 40) * 40;
+                    const newH = Math.round((roomStartDims.height + dy) / 40) * 40;
+                    room.width = Math.max(200, newW);
+                    room.height = Math.max(200, newH); 
+                    renderRoom();
+                }
+                
+                // Furniture Resize
+                if (isResizingFurn && furnResizeId) {
+                    const dx = (e.clientX - furnDragStart.x) / currentZoom;
+                    const dy = (e.clientY - furnDragStart.y) / currentZoom;
+                    
+                    const f = furniture.find(i => i.id === furnResizeId);
+                    if (f) {
+                        const newW = Math.round((furnStartDims.w + dx) / 40) * 40;
+                        const newH = Math.round((furnStartDims.h + dy) / 40) * 40;
+                        f.width = Math.max(40, newW);
+                        f.height = Math.max(40, newH);
+                        render(); // Re-render to see update
+                    }
+                }
+            });
+
+            window.addEventListener('mouseup', () => {
+                if (isMovingRoom || isResizingRoom || isResizingFurn) {
+                    isMovingRoom = false;
+                    isResizingRoom = false;
+                    isResizingFurn = false;
+                    furnResizeId = null;
+                    saveState(); 
+                }
+            });
+        }
+
+        // --- FINAL INIT ---
+        setTimeout(() => {
+            initSelectionLogic();
+            initRoomInteractions();
+        }, 100);
+
+    </script>
+</body>
+</html>

@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QuickJump Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 text-gray-800 font-sans">
+
+    <div class="max-w-4xl mx-auto p-6">
+        
+        <header class="mb-8 flex justify-between items-center">
+            <div>
+                <h1 class="text-3xl font-bold text-green-600">QuickJump Admin</h1>
+                <p class="text-gray-500">Manage game rooms</p>
+            </div>
+            <div id="connection-status" class="text-sm px-3 py-1 rounded-full bg-yellow-100 text-yellow-700 font-medium">
+                Connecting...
+            </div>
+        </header>
+
+        <div class="bg-white p-6 rounded-xl shadow-md mb-8">
+            <h2 class="text-xl font-semibold mb-4 border-b pb-2">Create Game Room</h2>
+            <div class="flex flex-col md:flex-row gap-4 items-end">
+                <div class="flex-grow w-full">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Room Name</label>
+                    <input type="text" id="roomNameInput" placeholder="e.g., Mario Bros" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 outline-none">
+                </div>
+                <button onclick="createRoom()" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg transition shadow-md w-full md:w-auto">
+                    Create
+                </button>
+            </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-xl shadow-md">
+            <h2 class="text-xl font-semibold mb-4 border-b pb-2">Active Rooms</h2>
+            <div id="roomList" class="space-y-3">
+                <p class="text-gray-400 text-center py-4">Loading rooms...</p>
+            </div>
+        </div>
+
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getDatabase, ref, push, onValue, remove, set } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAR7Tjp8k8dHybMWpmx-MfaV9Ziyl3eADc",
+            authDomain: "fwft-quickchat.firebaseapp.com",
+            databaseURL: "https://fwft-quickchat-default-rtdb.firebaseio.com",
+            projectId: "fwft-quickchat",
+            storageBucket: "fwft-quickchat.firebasestorage.app",
+            messagingSenderId: "27728669602",
+            appId: "1:27728669602:web:674bfa6cbb66320985e0fb",
+            measurementId: "G-ZRRG2BM00F"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        const auth = getAuth(app);
+        let currentUser = null;
+
+        onAuthStateChanged(auth, (user) => {
+            const statusEl = document.getElementById('connection-status');
+            if (user) {
+                currentUser = user;
+                statusEl.className = "text-sm px-3 py-1 rounded-full bg-green-100 text-green-700 font-medium";
+                statusEl.textContent = "● Connected";
+                listenForRooms();
+            } else {
+                signInAnonymously(auth);
+            }
+        });
+
+        window.createRoom = function() {
+            const name = document.getElementById('roomNameInput').value.trim();
+            if (!name) return alert("Enter name");
+            const newRoomRef = push(ref(db, 'game_rooms'));
+            set(newRoomRef, { name: name, createdAt: Date.now() });
+            document.getElementById('roomNameInput').value = "";
+        }
+
+        window.deleteRoom = function(roomId) {
+            if(!confirm("Delete this game room?")) return;
+            remove(ref(db, `game_rooms/${roomId}`));
+            remove(ref(db, `game_players/${roomId}`));
+        }
+
+        window.copyLink = function(roomId) {
+            const origin = window.location.origin;
+            let path = window.location.pathname.replace('/game_admin.html', '').replace('/index.html', '');
+            if (path.endsWith('/')) path = path.slice(0, -1);
+            const url = `${origin}${path}/game.html?id=${roomId}`;
+            navigator.clipboard.writeText(url).then(() => alert("Link copied!")).catch(() => prompt("Copy:", url));
+        }
+
+        function listenForRooms() {
+            onValue(ref(db, 'game_rooms'), (snapshot) => {
+                const list = document.getElementById('roomList');
+                list.innerHTML = "";
+                const rooms = snapshot.val();
+                if (!rooms) { list.innerHTML = "<div class='text-center text-gray-500'>No games.</div>"; return; }
+                
+                Object.entries(rooms).forEach(([id, room]) => {
+                    const html = `
+                        <div class="flex flex-col sm:flex-row justify-between items-center bg-gray-50 p-4 rounded border">
+                            <div class="font-bold text-lg">${room.name}</div>
+                            <div class="flex gap-2 mt-2 sm:mt-0">
+                                <button onclick="copyLink('${id}')" class="bg-white border px-3 py-1 rounded hover:bg-gray-100">🔗 Link</button>
+                                <button onclick="deleteRoom('${id}')" class="bg-red-100 text-red-600 px-3 py-1 rounded hover:bg-red-200">🗑 Delete</button>
+                            </div>
+                        </div>`;
+                    list.insertAdjacentHTML('afterbegin', html);
+                });
+            });
+        }
+    </script>
+</body>
+</html>

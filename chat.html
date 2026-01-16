@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QuickChat</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom scrollbar for cleaner look */
+        .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+        }
+        .scrollbar-hide {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        /* Mode transitions */
+        .fade-in {
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 h-screen flex flex-col font-sans">
+
+    <!-- Header -->
+    <header class="bg-white shadow-sm px-4 py-3 flex justify-between items-center z-10">
+        <div class="flex items-center gap-3">
+            <div>
+                <h1 id="roomName" class="text-lg font-bold text-gray-800 leading-tight">Loading...</h1>
+                <p id="connectionStatus" class="text-xs text-yellow-600">Connecting...</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-3">
+            
+            <!-- Font Size Controls -->
+            <div class="flex items-center bg-gray-100 rounded-lg p-1 mr-1">
+                <button id="fontDecBtn" class="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-white rounded shadow-sm transition" title="Smaller Text">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
+                        <path fill-rule="evenodd" d="M4 10a.75.75 0 01.75-.75h10.5a.75.75 0 010 1.5H4.75A.75.75 0 014 10z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+                <span class="text-xs text-gray-400 font-medium px-2 select-none">A</span>
+                <button id="fontIncBtn" class="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-white rounded shadow-sm transition" title="Larger Text">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
+                        <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
+                    </svg>
+                </button>
+            </div>
+
+            <!-- View Mode Toggle Button -->
+            <button id="toggleLayoutBtn" class="text-gray-500 hover:text-blue-600 transition p-2 rounded-full hover:bg-gray-100 group relative" title="Change View Mode">
+                <!-- Icon: Standard (Bubbles) -->
+                <svg id="iconStandard" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M8.625 9.75a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12.375m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375m-13.5 3.01c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.184-4.183a1.14 1.14 0 01.778-.332 48.294 48.294 0 005.83-.498c1.585-.233 2.708-1.626 2.708-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />
+                </svg>
+                <!-- Icon: Stream -->
+                <svg id="iconStream" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 hidden">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+                </svg>
+                <!-- Icon: Stat List -->
+                <svg id="iconStatList" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 hidden">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+                </svg>
+                <!-- Icon: Cloud -->
+                <svg id="iconCloud" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 hidden">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15a4.5 4.5 0 004.5 4.5H18a3.75 3.75 0 001.332-7.257 3 3 0 00-5.17-3.862 3.501 3.501 0 00-6.911 1.96 4.5 4.5 0 00-5 4.659z" />
+                </svg>
+                
+                <!-- Tooltip -->
+                <span id="modeTooltip" class="absolute top-full right-0 mt-2 w-max px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition pointer-events-none">
+                    Chat (Bubbles)
+                </span>
+            </button>
+            
+            <a href="admin.html" class="text-sm text-blue-600 hover:underline">Exit</a>
+        </div>
+    </header>
+
+    <!-- Chat/Stats Area -->
+    <main id="chatContainer" class="flex-grow overflow-y-auto p-4 flex flex-col space-y-3 transition-all duration-200" style="font-size: 14px;">
+        <!-- Content injected via JS -->
+        <div class="text-center text-gray-400 text-sm mt-10">Welcome to the chat!</div>
+    </main>
+
+    <!-- Input Area (Hidden in stats mode) -->
+    <footer id="inputArea" class="bg-white p-3 border-t">
+        <form id="messageForm" class="flex gap-2 max-w-4xl mx-auto">
+            <input type="text" id="messageInput" autocomplete="off" placeholder="Type a message..." 
+                class="flex-grow px-4 py-3 bg-gray-100 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 transition" disabled>
+            <button type="submit" id="sendBtn" 
+                class="bg-blue-600 text-white rounded-full p-3 hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+                  </svg>
+            </button>
+        </form>
+    </footer>
+
+    <!-- Name Modal -->
+    <div id="nameModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden backdrop-blur-sm">
+        <div class="bg-white p-6 rounded-xl shadow-xl w-full max-w-sm mx-4">
+            <h2 class="text-xl font-bold mb-2">Join Chat</h2>
+            <p class="text-gray-600 text-sm mb-4">Please enter your name to join this room.</p>
+            <form id="nameForm">
+                <input type="text" id="usernameInput" class="w-full border p-2 rounded-lg mb-4 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Your Name" required>
+                <button type="submit" class="w-full bg-blue-600 text-white py-2 rounded-lg font-bold hover:bg-blue-700 transition">Join</button>
+            </form>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getDatabase, ref, push, onValue, get } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+        // CONFIGURATION
+        const firebaseConfig = {
+            apiKey: "AIzaSyAR7Tjp8k8dHybMWpmx-MfaV9Ziyl3eADc",
+            authDomain: "fwft-quickchat.firebaseapp.com",
+            databaseURL: "https://fwft-quickchat-default-rtdb.firebaseio.com",
+            projectId: "fwft-quickchat",
+            storageBucket: "fwft-quickchat.firebasestorage.app",
+            messagingSenderId: "27728669602",
+            appId: "1:27728669602:web:674bfa6cbb66320985e0fb",
+            measurementId: "G-ZRRG2BM00F"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        const auth = getAuth(app);
+
+        // State
+        let currentUser = null;
+        let username = localStorage.getItem('chat_username') || "";
+        let roomId = new URLSearchParams(window.location.search).get('id');
+        let currentMessages = [];
+        let fontSize = 14;
+        
+        // MODES: 0=Standard, 1=Stream, 2=StatList, 3=StatCloud
+        let viewMode = 0; 
+        const MODES = [
+            { id: 0, name: "Chat (Bubbles)", icon: "iconStandard" },
+            { id: 1, name: "Chat (Stream)", icon: "iconStream" },
+            { id: 2, name: "Stats (Frequency)", icon: "iconStatList" },
+            { id: 3, name: "Stats (Cloud)", icon: "iconCloud" }
+        ];
+
+        // UI Elements
+        const statusEl = document.getElementById('connectionStatus');
+        const inputEl = document.getElementById('messageInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const chatContainer = document.getElementById('chatContainer');
+        const inputArea = document.getElementById('inputArea');
+        const modal = document.getElementById('nameModal');
+        const toggleBtn = document.getElementById('toggleLayoutBtn');
+        const tooltip = document.getElementById('modeTooltip');
+        const fontIncBtn = document.getElementById('fontIncBtn');
+        const fontDecBtn = document.getElementById('fontDecBtn');
+
+        // Initialize
+        if (!roomId) {
+            alert("No room ID found! Redirecting to admin...");
+            window.location.href = 'admin.html';
+        }
+
+        // Auth
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                currentUser = user;
+                statusEl.textContent = "● Connected";
+                statusEl.className = "text-xs text-green-600";
+                loadRoomDetails();
+            } else {
+                signInAnonymously(auth).catch(err => alert("Auth failed: " + err.message));
+            }
+        });
+
+        // Load Room
+        async function loadRoomDetails() {
+            const roomRef = ref(db, `rooms/${roomId}`);
+            const snapshot = await get(roomRef);
+
+            if (!snapshot.exists()) {
+                document.getElementById('roomName').textContent = "Room Not Found";
+                return;
+            }
+
+            const roomData = snapshot.val();
+            document.getElementById('roomName').textContent = roomData.name;
+
+            if (roomData.requireUsername) {
+                if (!username) {
+                    modal.classList.remove('hidden');
+                    document.getElementById('usernameInput').focus();
+                } else {
+                    enableChat();
+                }
+            } else {
+                if (!username) username = "Guest";
+                enableChat();
+            }
+        }
+
+        document.getElementById('nameForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const val = document.getElementById('usernameInput').value.trim();
+            if (val) {
+                username = val;
+                localStorage.setItem('chat_username', username);
+                modal.classList.add('hidden');
+                enableChat();
+            }
+        });
+
+        function enableChat() {
+            inputEl.disabled = false;
+            sendBtn.disabled = false;
+            inputEl.focus();
+            
+            const messagesRef = ref(db, `messages/${roomId}`);
+            onValue(messagesRef, (snapshot) => {
+                const data = snapshot.val();
+                currentMessages = data; 
+                renderView();
+            });
+        }
+
+        document.getElementById('messageForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const text = inputEl.value.trim();
+            if (!text) return;
+
+            push(ref(db, `messages/${roomId}`), {
+                text: text,
+                sender: username,
+                senderUid: currentUser.uid,
+                timestamp: Date.now()
+            });
+
+            inputEl.value = "";
+        });
+
+        // ==========================================
+        //  VIEW MODE LOGIC
+        // ==========================================
+
+        toggleBtn.addEventListener('click', () => {
+            // Cycle mode: 0 -> 1 -> 2 -> 3 -> 0
+            viewMode = (viewMode + 1) % MODES.length;
+            updateModeUI();
+            renderView();
+        });
+
+        function updateModeUI() {
+            // Hide all icons
+            MODES.forEach(m => document.getElementById(m.icon).classList.add('hidden'));
+            // Show current icon
+            const current = MODES[viewMode];
+            document.getElementById(current.icon).classList.remove('hidden');
+            tooltip.textContent = current.name;
+
+            // Hide input area for Stats modes (2 and 3)
+            if (viewMode >= 2) {
+                inputArea.classList.add('hidden');
+            } else {
+                inputArea.classList.remove('hidden');
+            }
+        }
+
+        function calculateStats() {
+            if (!currentMessages) return [];
+            const counts = {};
+            const total = Object.keys(currentMessages).length;
+            
+            Object.values(currentMessages).forEach(msg => {
+                const txt = msg.text; // Case sensitive? Use .toLowerCase() if you want to merge.
+                counts[txt] = (counts[txt] || 0) + 1;
+            });
+
+            // Convert to array
+            return Object.entries(counts)
+                .map(([text, count]) => ({
+                    text,
+                    count,
+                    percentage: ((count / total) * 100).toFixed(1)
+                }))
+                .sort((a, b) => b.count - a.count); // Sort Descending
+        }
+
+        function renderView() {
+            chatContainer.innerHTML = "";
+            chatContainer.className = "flex-grow overflow-y-auto p-4 transition-all duration-200 fade-in"; // Reset classes
+
+            if (!currentMessages) {
+                chatContainer.innerHTML = `<div class="text-center text-gray-400 text-sm mt-10">No data yet.</div>`;
+                return;
+            }
+
+            const msgArray = Object.values(currentMessages).sort((a, b) => a.timestamp - b.timestamp);
+
+            // === MODE 0: STANDARD (Bubbles) ===
+            if (viewMode === 0) {
+                chatContainer.classList.add('flex', 'flex-col', 'space-y-3');
+                let lastSender = "";
+                msgArray.forEach(msg => {
+                    const isMe = msg.senderUid === currentUser.uid;
+                    const bubble = document.createElement('div');
+                    bubble.className = `flex flex-col ${isMe ? 'items-end' : 'items-start'}`;
+                    const showName = !isMe && msg.sender !== lastSender;
+                    const nameHtml = showName ? `<span class="text-xs text-gray-500 ml-2 mb-1">${msg.sender}</span>` : '';
+                    bubble.innerHTML = `${nameHtml}<div class="px-4 py-2 rounded-2xl max-w-[80%] break-words shadow-sm ${isMe ? 'bg-blue-600 text-white rounded-br-none' : 'bg-white text-gray-800 rounded-bl-none border border-gray-100'}">${escapeHtml(msg.text)}</div>`;
+                    chatContainer.appendChild(bubble);
+                    lastSender = msg.sender;
+                });
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+
+            // === MODE 1: STREAM ===
+            } else if (viewMode === 1) {
+                chatContainer.classList.add('content-start');
+                const streamWrapper = document.createElement('div');
+                streamWrapper.className = "flex flex-wrap gap-2 items-center";
+                msgArray.forEach(msg => {
+                    const isMe = msg.senderUid === currentUser.uid;
+                    const pill = document.createElement('div');
+                    pill.className = `px-3 py-1.5 rounded-full inline-block shadow-sm border ${isMe ? 'bg-blue-100 text-blue-900 border-blue-200' : 'bg-white text-gray-700 border-gray-200'}`;
+                    pill.textContent = msg.text;
+                    streamWrapper.appendChild(pill);
+                });
+                chatContainer.appendChild(streamWrapper);
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+
+            // === MODE 2: STAT LIST ===
+            } else if (viewMode === 2) {
+                const stats = calculateStats();
+                chatContainer.classList.add('max-w-3xl', 'mx-auto', 'w-full');
+                
+                const table = document.createElement('div');
+                table.className = "bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden";
+                
+                // Header
+                table.innerHTML = `
+                    <div class="grid grid-cols-12 bg-gray-50 p-3 text-xs font-bold text-gray-500 uppercase tracking-wider border-b">
+                        <div class="col-span-8">Message</div>
+                        <div class="col-span-2 text-right">Count</div>
+                        <div class="col-span-2 text-right">%</div>
+                    </div>
+                `;
+
+                // Rows
+                stats.forEach((item, index) => {
+                    const row = document.createElement('div');
+                    row.className = `grid grid-cols-12 p-3 text-sm border-b last:border-0 hover:bg-gray-50 ${index < 3 ? 'font-medium text-blue-900' : 'text-gray-700'}`;
+                    row.innerHTML = `
+                        <div class="col-span-8 truncate pr-4" title="${escapeHtml(item.text)}">${index + 1}. ${escapeHtml(item.text)}</div>
+                        <div class="col-span-2 text-right font-mono text-gray-500">${item.count}</div>
+                        <div class="col-span-2 text-right font-mono text-gray-400">${item.percentage}%</div>
+                    `;
+                    table.appendChild(row);
+                });
+                chatContainer.appendChild(table);
+
+            // === MODE 3: STAT CLOUD ===
+            } else if (viewMode === 3) {
+                const stats = calculateStats(); 
+                
+                // Algo: Center Heavy reordering
+                const centerHeavyStats = [];
+                let left = true;
+                stats.forEach(item => {
+                    if (left) centerHeavyStats.unshift(item);
+                    else centerHeavyStats.push(item);
+                    left = !left;
+                });
+
+                // Set chatContainer as a flex centering stage
+                chatContainer.classList.add('flex', 'justify-center', 'items-center', 'h-full', 'overflow-hidden');
+                
+                // Create a constrained wrapper for the 4:3 look
+                const wrapper = document.createElement('div');
+                wrapper.className = "flex flex-wrap justify-center items-center content-center p-4 border-2 border-dashed border-gray-200 rounded-2xl"; // Added border for visualization
+                
+                // Logic: 
+                // width: fit-content -> shrinks if few words.
+                // min-width: 300px -> ensures it's at least a small box.
+                // aspect-ratio: 4/3 -> maintains shape as it grows.
+                // max-width: 90% -> prevents touching screen edges.
+                wrapper.style.width = "fit-content";
+                wrapper.style.minWidth = "300px"; 
+                wrapper.style.maxWidth = "90%";
+                wrapper.style.maxHeight = "90%";
+                wrapper.style.aspectRatio = "4/3";
+                
+                // Find Max count for sizing
+                const maxCount = stats.length > 0 ? stats[0].count : 1;
+                const minCount = stats.length > 0 ? stats[stats.length - 1].count : 1;
+
+                centerHeavyStats.forEach(item => {
+                    const el = document.createElement('span');
+                    // Dynamic font size logic
+                    let scale = (maxCount !== minCount) ? (item.count - minCount) / (maxCount - minCount) : 1;
+                    const sizeRem = 1 + (scale * 4); // Range 1rem to 5rem
+                    const opacity = 0.4 + (scale * 0.6);
+
+                    el.style.fontSize = `${sizeRem}rem`;
+                    el.style.opacity = opacity;
+                    el.className = "m-2 font-bold text-blue-600 leading-none select-none transition hover:scale-110 cursor-default";
+                    el.textContent = item.text;
+                    el.title = `${item.count} times (${item.percentage}%)`;
+                    
+                    wrapper.appendChild(el);
+                });
+                
+                chatContainer.appendChild(wrapper);
+            }
+        }
+
+        // Font Size Logic
+        fontIncBtn.addEventListener('click', () => {
+            if (fontSize < 32) { fontSize += 2; updateFontSize(); }
+        });
+        fontDecBtn.addEventListener('click', () => {
+            if (fontSize > 10) { fontSize -= 2; updateFontSize(); }
+        });
+        function updateFontSize() {
+            // Only apply to chat modes, not stat modes
+            if (viewMode <= 1) chatContainer.style.fontSize = `${fontSize}px`;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>

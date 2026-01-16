@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>QuickDraw Board</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { overscroll-behavior-y: contain; touch-action: none; }
+        canvas { touch-action: none; cursor: crosshair; }
+        
+        .color-swatch { transition: transform 0.1s; }
+        .color-swatch.active { transform: scale(1.2); ring-width: 2px; --tw-ring-color: #3b82f6; box-shadow: 0 0 0 2px white, 0 0 0 4px #3b82f6; }
+        
+        .size-btn { opacity: 0.5; transition: opacity 0.2s; }
+        .size-btn:hover { opacity: 0.8; }
+        .size-btn.active { opacity: 1; background-color: #eff6ff; border-radius: 4px; }
+
+        .tool-btn { opacity: 0.6; transition: all 0.2s; }
+        .tool-btn:hover { opacity: 1; background-color: #f3f4f6; }
+        .tool-btn.active { opacity: 1; background-color: #e0e7ff; color: #4f46e5; ring-width: 2px; --tw-ring-color: #6366f1; }
+        
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="bg-gray-200 h-screen w-screen overflow-hidden flex flex-col">
+
+    <!-- Toolbar -->
+    <div class="bg-white shadow-md p-2 flex flex-col sm:flex-row justify-between items-center z-10 shrink-0 gap-2">
+        
+        <div class="flex items-center gap-4 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0 hide-scrollbar px-1">
+            
+            <!-- 1. Color Palette -->
+            <div id="colorPalette" class="flex gap-2 items-center shrink-0"></div>
+
+            <div class="h-8 w-px bg-gray-200 mx-1 shrink-0"></div>
+
+            <!-- 2. Size Palette -->
+            <div id="sizePalette" class="flex gap-1 items-center shrink-0"></div>
+
+            <div class="h-8 w-px bg-gray-200 mx-1 shrink-0"></div>
+
+            <!-- 3. Tools Palette -->
+            <div id="toolPalette" class="flex gap-1 items-center shrink-0">
+                <button id="tool-free" class="p-2 rounded tool-btn active" title="Freehand" onclick="selectTool('free')">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                    </svg>
+                </button>
+                <button id="tool-line" class="p-2 rounded tool-btn" title="Line" onclick="selectTool('line')">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 4L4 20" />
+                    </svg>
+                </button>
+                <button id="tool-rect" class="p-2 rounded tool-btn" title="Rectangle" onclick="selectTool('rect')">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <rect x="3" y="3" width="18" height="18" stroke-width="2" rx="2" />
+                    </svg>
+                </button>
+                <button id="tool-circle" class="p-2 rounded tool-btn" title="Circle" onclick="selectTool('circle')">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <circle cx="12" cy="12" r="9" stroke-width="2" />
+                    </svg>
+                </button>
+                <button id="tool-eraser" class="p-2 rounded tool-btn text-red-500" title="Eraser" onclick="selectTool('eraser')">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-3 shrink-0">
+             <h1 id="roomName" class="font-bold text-gray-700 hidden md:block text-sm truncate max-w-[150px]">Loading...</h1>
+             <a href="draw_admin.html" class="text-sm text-blue-600 hover:underline whitespace-nowrap bg-gray-50 px-3 py-1 rounded">Exit</a>
+        </div>
+    </div>
+
+    <div id="canvasContainer" class="flex-grow relative bg-white m-2 shadow-inner rounded overflow-hidden">
+        <canvas id="drawingCanvas" class="absolute top-0 left-0 w-full h-full"></canvas>
+        <div id="statusMsg" class="absolute top-2 right-2 text-xs bg-black/10 px-2 py-1 rounded text-gray-500 pointer-events-none">Connecting...</div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getDatabase, ref, push, onValue, get, onChildAdded, onChildRemoved } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+        // CONFIG
+        const firebaseConfig = {
+            apiKey: "AIzaSyAR7Tjp8k8dHybMWpmx-MfaV9Ziyl3eADc",
+            authDomain: "fwft-quickchat.firebaseapp.com",
+            databaseURL: "https://fwft-quickchat-default-rtdb.firebaseio.com",
+            projectId: "fwft-quickchat",
+            storageBucket: "fwft-quickchat.firebasestorage.app",
+            messagingSenderId: "27728669602",
+            appId: "1:27728669602:web:674bfa6cbb66320985e0fb",
+            measurementId: "G-ZRRG2BM00F"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        const auth = getAuth(app);
+
+        // State
+        const roomId = new URLSearchParams(window.location.search).get('id');
+        if (!roomId) window.location.href = 'draw_admin.html';
+
+        const canvas = document.getElementById('drawingCanvas');
+        const ctx = canvas.getContext('2d');
+        let rect = canvas.getBoundingClientRect();
+
+        // Drawing Settings
+        let isDrawing = false;
+        let currentStroke = []; // For freehand
+        let currentColor = "#000000";
+        let currentWidth = 4;
+        let currentTool = 'free'; // free, line, rect, circle, eraser
+        
+        // Shape Preview State
+        let startX, startY;
+        let canvasSnapshot;
+
+        // PRESETS
+        const COLORS = ['#000000', '#EF4444', '#F59E0B', '#EAB308', '#22C55E', '#3B82F6', '#6366F1', '#A855F7', '#EC4899', '#6B7280'];
+        const SIZES = [2, 4, 8, 12, 20];
+
+        initToolbar();
+
+        // Expose function globally for HTML onclick
+        window.selectTool = function(tool) {
+            currentTool = tool;
+            
+            // Visual Updates
+            document.querySelectorAll('.tool-btn').forEach(el => el.classList.remove('active'));
+            document.getElementById(`tool-${tool}`).classList.add('active');
+            
+            // If selecting eraser, ensure no color is visually selected (optional UX choice)
+            if (tool === 'eraser') {
+                 document.querySelectorAll('.color-swatch').forEach(el => el.classList.remove('active'));
+            } else {
+                 // Reselect color if switching back from eraser
+                 const activeColorBtn = Array.from(document.querySelectorAll('.color-swatch')).find(el => el.style.backgroundColor === rgbToHex(currentColor) || el.style.backgroundColor === currentColor);
+                 if(activeColorBtn && !activeColorBtn.classList.contains('active')) activeColorBtn.classList.add('active');
+            }
+        }
+
+        function initToolbar() {
+            // Colors
+            const colorContainer = document.getElementById('colorPalette');
+            COLORS.forEach(color => {
+                const btn = document.createElement('div');
+                btn.className = `w-6 h-6 rounded-full cursor-pointer color-swatch border border-gray-200 ${color === currentColor ? 'active' : ''}`;
+                btn.style.backgroundColor = color;
+                btn.onclick = () => {
+                    currentColor = color;
+                    if(currentTool === 'eraser') selectTool('free'); // Switch back to drawing if color clicked
+                    // Update visuals
+                    document.querySelectorAll('.color-swatch').forEach(el => el.classList.remove('active'));
+                    btn.classList.add('active');
+                };
+                colorContainer.appendChild(btn);
+            });
+
+            // Sizes
+            const sizeContainer = document.getElementById('sizePalette');
+            SIZES.forEach(size => {
+                const btn = document.createElement('div');
+                btn.className = `w-8 h-8 flex items-center justify-center cursor-pointer size-btn ${size === currentWidth ? 'active' : ''}`;
+                const dot = document.createElement('div');
+                dot.className = "bg-gray-800 rounded-full";
+                dot.style.width = `${Math.min(size, 20)}px`;
+                dot.style.height = `${Math.min(size, 20)}px`;
+                btn.onclick = () => {
+                    currentWidth = size;
+                    document.querySelectorAll('.size-btn').forEach(el => el.classList.remove('active'));
+                    btn.classList.add('active');
+                };
+                btn.appendChild(dot);
+                sizeContainer.appendChild(btn);
+            });
+        }
+
+        // Resize
+        function resizeCanvas() {
+            canvas.width = canvas.parentElement.clientWidth;
+            canvas.height = canvas.parentElement.clientHeight;
+            rect = canvas.getBoundingClientRect();
+            loadExistingLines(); 
+        }
+        window.addEventListener('resize', resizeCanvas);
+        setTimeout(resizeCanvas, 100);
+
+        // Firebase Sync
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                document.getElementById('statusMsg').textContent = "Connected";
+                get(ref(db, `draw_rooms/${roomId}`)).then(snap => {
+                    if(snap.exists()) document.getElementById('roomName').textContent = snap.val().name;
+                });
+                setupRealtimeListener();
+            } else {
+                signInAnonymously(auth);
+            }
+        });
+
+        function setupRealtimeListener() {
+            const linesRef = ref(db, `draw_lines/${roomId}`);
+            onChildAdded(linesRef, (snapshot) => {
+                drawRemoteObject(snapshot.val());
+            });
+            onChildRemoved(linesRef, () => {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+            });
+        }
+
+        function loadExistingLines() {
+             get(ref(db, `draw_lines/${roomId}`)).then(snap => {
+                 if(snap.exists()) {
+                     ctx.clearRect(0, 0, canvas.width, canvas.height);
+                     Object.values(snap.val()).forEach(drawRemoteObject);
+                 }
+             });
+        }
+
+        // ==========================
+        // DRAWING LOGIC
+        // ==========================
+
+        function startPosition(e) {
+            isDrawing = true;
+            const { x, y } = getPos(e);
+            
+            ctx.lineWidth = currentWidth;
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = (currentTool === 'eraser') ? "rgba(0,0,0,1)" : currentColor;
+            ctx.globalCompositeOperation = (currentTool === 'eraser') ? 'destination-out' : 'source-over';
+
+            if (currentTool === 'free' || currentTool === 'eraser') {
+                currentStroke = [];
+                ctx.beginPath();
+                // Draw initial dot
+                ctx.moveTo(x, y);
+                ctx.lineTo(x, y);
+                ctx.stroke();
+                // Save normalized point
+                currentStroke.push({ x: x / canvas.width, y: y / canvas.height });
+            } else {
+                // Shapes: Save state to enable preview
+                startX = x;
+                startY = y;
+                canvasSnapshot = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            }
+        }
+
+        function draw(e) {
+            if (!isDrawing) return;
+            e.preventDefault();
+            const { x, y } = getPos(e);
+
+            if (currentTool === 'free' || currentTool === 'eraser') {
+                ctx.lineTo(x, y);
+                ctx.stroke();
+                // Add point to stroke
+                currentStroke.push({ x: x / canvas.width, y: y / canvas.height });
+            } else {
+                // Shapes: Restore -> Draw Preview
+                ctx.putImageData(canvasSnapshot, 0, 0);
+                ctx.beginPath();
+                
+                if (currentTool === 'line') {
+                    ctx.moveTo(startX, startY);
+                    ctx.lineTo(x, y);
+                } else if (currentTool === 'rect') {
+                    ctx.strokeRect(startX, startY, x - startX, y - startY);
+                } else if (currentTool === 'circle') {
+                    const radius = Math.sqrt(Math.pow(x - startX, 2) + Math.pow(y - startY, 2));
+                    ctx.arc(startX, startY, radius, 0, 2 * Math.PI);
+                }
+                ctx.stroke();
+            }
+        }
+
+        function finishPosition(e) {
+            if (!isDrawing) return;
+            isDrawing = false;
+
+            // Finalize & Send
+            if (currentTool === 'free' || currentTool === 'eraser') {
+                ctx.beginPath(); // Reset path
+                if (currentStroke.length > 0) {
+                    push(ref(db, `draw_lines/${roomId}`), {
+                        tool: currentTool,
+                        points: currentStroke,
+                        color: currentColor,
+                        width: currentWidth
+                    });
+                }
+            } else {
+                // Shapes need the final end position (or user let go of mouse)
+                // We use the last known mouse position from the event if possible, 
+                // but since this is mouseup, 'e' might be valid.
+                let endX, endY;
+                
+                // If event is available and has coords, use them. Otherwise use last (which is implicitly what's on canvas)
+                // Actually, for shapes, what's on canvas IS the final state because we drew it in `draw`.
+                // However, we need coordinates to send to DB.
+                const { x, y } = getPos(e);
+                endX = x; endY = y;
+
+                // Send Shape Data
+                push(ref(db, `draw_lines/${roomId}`), {
+                    tool: currentTool,
+                    start: { x: startX / canvas.width, y: startY / canvas.height },
+                    end: { x: endX / canvas.width, y: endY / canvas.height },
+                    color: currentColor,
+                    width: currentWidth
+                });
+            }
+            
+            // Reset composite operation just in case
+            ctx.globalCompositeOperation = 'source-over';
+        }
+
+        function drawRemoteObject(data) {
+            if (!data) return;
+
+            ctx.lineWidth = data.width;
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = (data.tool === 'eraser') ? "rgba(0,0,0,1)" : data.color;
+            ctx.globalCompositeOperation = (data.tool === 'eraser') ? 'destination-out' : 'source-over';
+            
+            ctx.beginPath();
+
+            if (data.tool === 'line' || data.tool === 'rect' || data.tool === 'circle') {
+                // Shapes
+                const sx = data.start.x * canvas.width;
+                const sy = data.start.y * canvas.height;
+                const ex = data.end.x * canvas.width;
+                const ey = data.end.y * canvas.height;
+
+                if (data.tool === 'line') {
+                    ctx.moveTo(sx, sy);
+                    ctx.lineTo(ex, ey);
+                } else if (data.tool === 'rect') {
+                    ctx.strokeRect(sx, sy, ex - sx, ey - sy);
+                } else if (data.tool === 'circle') {
+                    const radius = Math.sqrt(Math.pow(ex - sx, 2) + Math.pow(ey - sy, 2));
+                    ctx.arc(sx, sy, radius, 0, 2 * Math.PI);
+                }
+                ctx.stroke();
+
+            } else {
+                // Freehand / Eraser (points array)
+                if (!data.points) return;
+                data.points.forEach((point, index) => {
+                    const px = point.x * canvas.width;
+                    const py = point.y * canvas.height;
+                    if (index === 0) ctx.moveTo(px, py);
+                    else ctx.lineTo(px, py);
+                });
+                ctx.stroke();
+            }
+
+            ctx.globalCompositeOperation = 'source-over';
+        }
+
+        // Helper: Get X/Y from event
+        function getPos(e) {
+            let clientX, clientY;
+            // Touchend often doesn't have touches list, use changedTouches
+            if (e.changedTouches && e.changedTouches.length > 0) {
+                clientX = e.changedTouches[0].clientX;
+                clientY = e.changedTouches[0].clientY;
+            } else if (e.touches && e.touches.length > 0) {
+                clientX = e.touches[0].clientX;
+                clientY = e.touches[0].clientY;
+            } else {
+                clientX = e.clientX;
+                clientY = e.clientY;
+            }
+            return {
+                x: clientX - rect.left,
+                y: clientY - rect.top
+            };
+        }
+
+        function rgbToHex(col) {
+            if(col.charAt(0)=='#') return col;
+            return col; 
+        }
+
+        // Listeners
+        canvas.addEventListener('mousedown', startPosition);
+        canvas.addEventListener('mouseup', finishPosition);
+        canvas.addEventListener('mousemove', draw);
+        // window.addEventListener('mouseup', finishPosition); // Causes issues with shapes sometimes if mouseup outside
+
+        canvas.addEventListener('touchstart', startPosition, { passive: false });
+        canvas.addEventListener('touchend', finishPosition);
+        canvas.addEventListener('touchmove', draw, { passive: false });
+    </script>
+</body>
+</html>
