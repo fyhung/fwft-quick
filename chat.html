@@ -458,8 +458,8 @@
         }
 
         // Font Size
-        if(fontIncBtn) fontIncBtn.addEventListener('click', () => { if (fontSize < 32) { fontSize += 2; updateFontSize(); } });
-        if(fontDecBtn) fontDecBtn.addEventListener('click', () => { if (fontSize > 10) { fontSize -= 2; updateFontSize(); } });
+        if(fontIncBtn) fontIncBtn.addEventListener('click', () => { if (fontSize < 72) { fontSize += 2; updateFontSize(); } });
+        if(fontDecBtn) fontDecBtn.addEventListener('click', () => { if (fontSize > 8) { fontSize -= 2; updateFontSize(); } });
         function updateFontSize() { if (viewMode <= 1) chatContainer.style.fontSize = `${fontSize}px`; }
 
         function escapeHtml(text) {
