@@ -34,10 +34,10 @@
                 <p id="connectionStatus" class="text-xs text-yellow-600">Connecting...</p>
             </div>
         </div>
-        <div class="flex items-center gap-3">
+        <div class="flex items-center gap-2 sm:gap-3">
             
             <!-- Font Size Controls -->
-            <div class="flex items-center bg-gray-100 rounded-lg p-1 mr-1">
+            <div class="flex items-center bg-gray-100 rounded-lg p-1 mr-1 hidden sm:flex">
                 <button id="fontDecBtn" class="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-white rounded shadow-sm transition" title="Smaller Text">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
                         <path fill-rule="evenodd" d="M4 10a.75.75 0 01.75-.75h10.5a.75.75 0 010 1.5H4.75A.75.75 0 014 10z" clip-rule="evenodd" />
@@ -69,11 +69,14 @@
                 <svg id="iconCloud" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 hidden">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15a4.5 4.5 0 004.5 4.5H18a3.75 3.75 0 001.332-7.257 3 3 0 00-5.17-3.862 3.501 3.501 0 00-6.911 1.96 4.5 4.5 0 00-5 4.659z" />
                 </svg>
-                
-                <!-- Tooltip -->
-                <span id="modeTooltip" class="absolute top-full right-0 mt-2 w-max px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition pointer-events-none">
-                    Chat (Bubbles)
-                </span>
+            </button>
+
+            <!-- QR Code Button (NEW) -->
+            <button onclick="showQR()" class="text-gray-500 hover:text-purple-600 transition p-2 rounded-full hover:bg-gray-100" title="Show QR Code">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 6.75h.75v.75h-.75v-.75zM6.75 16.5h.75v.75h-.75v-.75zM16.5 6.75h.75v.75h-.75v-.75zM13.5 13.5h.75v.75h-.75v-.75zM13.5 19.5h.75v.75h-.75v-.75zM19.5 13.5h.75v.75h-.75v-.75zM16.5 16.5h.75v.75h-.75v-.75zM16.5 19.5h.75v.75h-.75v-.75z" />
+                </svg>
             </button>
             
             <a href="admin.html" class="text-sm text-blue-600 hover:underline">Exit</a>
@@ -109,6 +112,20 @@
                 <input type="text" id="usernameInput" class="w-full border p-2 rounded-lg mb-4 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Your Name" required>
                 <button type="submit" class="w-full bg-blue-600 text-white py-2 rounded-lg font-bold hover:bg-blue-700 transition">Join</button>
             </form>
+        </div>
+    </div>
+
+    <!-- QR Modal (NEW) -->
+    <div id="qrModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden backdrop-blur-sm" onclick="closeQR(event)">
+        <div class="bg-white p-6 rounded-xl shadow-xl flex flex-col items-center">
+            <h3 class="text-lg font-bold text-gray-800 mb-4">Scan to Join</h3>
+            <div class="bg-white p-2 rounded border border-gray-200 mb-2">
+                <img id="qrImage" src="" alt="QR Code" class="w-64 h-64 object-contain">
+            </div>
+            <p class="text-xs text-gray-500">Share this code with others</p>
+            <button onclick="document.getElementById('qrModal').classList.add('hidden')" class="mt-4 text-sm text-gray-600 hover:text-gray-900 font-medium px-4 py-2 rounded border hover:bg-gray-50">
+                Close
+            </button>
         </div>
     </div>
 
@@ -157,9 +174,22 @@
         const inputArea = document.getElementById('inputArea');
         const modal = document.getElementById('nameModal');
         const toggleBtn = document.getElementById('toggleLayoutBtn');
-        const tooltip = document.getElementById('modeTooltip');
         const fontIncBtn = document.getElementById('fontIncBtn');
         const fontDecBtn = document.getElementById('fontDecBtn');
+
+        // Global functions for HTML onclick attributes
+        window.showQR = function() {
+            const url = window.location.href;
+            const qrImage = document.getElementById('qrImage');
+            qrImage.src = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(url)}`;
+            document.getElementById('qrModal').classList.remove('hidden');
+        }
+
+        window.closeQR = function(e) {
+            if (e.target.id === 'qrModal') {
+                document.getElementById('qrModal').classList.add('hidden');
+            }
+        }
 
         // Initialize
         if (!roomId) {
@@ -244,26 +274,18 @@
             inputEl.value = "";
         });
 
-        // ==========================================
-        //  VIEW MODE LOGIC
-        // ==========================================
-
+        // View Logic
         toggleBtn.addEventListener('click', () => {
-            // Cycle mode: 0 -> 1 -> 2 -> 3 -> 0
             viewMode = (viewMode + 1) % MODES.length;
             updateModeUI();
             renderView();
         });
 
         function updateModeUI() {
-            // Hide all icons
             MODES.forEach(m => document.getElementById(m.icon).classList.add('hidden'));
-            // Show current icon
             const current = MODES[viewMode];
             document.getElementById(current.icon).classList.remove('hidden');
-            tooltip.textContent = current.name;
-
-            // Hide input area for Stats modes (2 and 3)
+            
             if (viewMode >= 2) {
                 inputArea.classList.add('hidden');
             } else {
@@ -277,23 +299,22 @@
             const total = Object.keys(currentMessages).length;
             
             Object.values(currentMessages).forEach(msg => {
-                const txt = msg.text; // Case sensitive? Use .toLowerCase() if you want to merge.
+                const txt = msg.text; 
                 counts[txt] = (counts[txt] || 0) + 1;
             });
 
-            // Convert to array
             return Object.entries(counts)
                 .map(([text, count]) => ({
                     text,
                     count,
                     percentage: ((count / total) * 100).toFixed(1)
                 }))
-                .sort((a, b) => b.count - a.count); // Sort Descending
+                .sort((a, b) => b.count - a.count);
         }
 
         function renderView() {
             chatContainer.innerHTML = "";
-            chatContainer.className = "flex-grow overflow-y-auto p-4 transition-all duration-200 fade-in"; // Reset classes
+            chatContainer.className = "flex-grow overflow-y-auto p-4 transition-all duration-200 fade-in"; 
 
             if (!currentMessages) {
                 chatContainer.innerHTML = `<div class="text-center text-gray-400 text-sm mt-10">No data yet.</div>`;
@@ -302,8 +323,7 @@
 
             const msgArray = Object.values(currentMessages).sort((a, b) => a.timestamp - b.timestamp);
 
-            // === MODE 0: STANDARD (Bubbles) ===
-            if (viewMode === 0) {
+            if (viewMode === 0) { // Standard
                 chatContainer.classList.add('flex', 'flex-col', 'space-y-3');
                 let lastSender = "";
                 msgArray.forEach(msg => {
@@ -318,8 +338,7 @@
                 });
                 chatContainer.scrollTop = chatContainer.scrollHeight;
 
-            // === MODE 1: STREAM ===
-            } else if (viewMode === 1) {
+            } else if (viewMode === 1) { // Stream
                 chatContainer.classList.add('content-start');
                 const streamWrapper = document.createElement('div');
                 streamWrapper.className = "flex flex-wrap gap-2 items-center";
@@ -333,15 +352,11 @@
                 chatContainer.appendChild(streamWrapper);
                 chatContainer.scrollTop = chatContainer.scrollHeight;
 
-            // === MODE 2: STAT LIST ===
-            } else if (viewMode === 2) {
+            } else if (viewMode === 2) { // List Stats
                 const stats = calculateStats();
                 chatContainer.classList.add('max-w-3xl', 'mx-auto', 'w-full');
-                
                 const table = document.createElement('div');
                 table.className = "bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden";
-                
-                // Header
                 table.innerHTML = `
                     <div class="grid grid-cols-12 bg-gray-50 p-3 text-xs font-bold text-gray-500 uppercase tracking-wider border-b">
                         <div class="col-span-8">Message</div>
@@ -349,8 +364,6 @@
                         <div class="col-span-2 text-right">%</div>
                     </div>
                 `;
-
-                // Rows
                 stats.forEach((item, index) => {
                     const row = document.createElement('div');
                     row.className = `grid grid-cols-12 p-3 text-sm border-b last:border-0 hover:bg-gray-50 ${index < 3 ? 'font-medium text-blue-900' : 'text-gray-700'}`;
@@ -363,72 +376,46 @@
                 });
                 chatContainer.appendChild(table);
 
-            // === MODE 3: STAT CLOUD ===
-            } else if (viewMode === 3) {
+            } else if (viewMode === 3) { // Cloud Stats
                 const stats = calculateStats(); 
-                
-                // Algo: Center Heavy reordering
                 const centerHeavyStats = [];
                 let left = true;
                 stats.forEach(item => {
-                    if (left) centerHeavyStats.unshift(item);
-                    else centerHeavyStats.push(item);
+                    if (left) centerHeavyStats.unshift(item); else centerHeavyStats.push(item);
                     left = !left;
                 });
 
-                // Set chatContainer as a flex centering stage
                 chatContainer.classList.add('flex', 'justify-center', 'items-center', 'h-full', 'overflow-hidden');
-                
-                // Create a constrained wrapper for the 4:3 look
                 const wrapper = document.createElement('div');
-                wrapper.className = "flex flex-wrap justify-center items-center content-center p-4 border-2 border-dashed border-gray-200 rounded-2xl"; // Added border for visualization
-                
-                // Logic: 
-                // width: fit-content -> shrinks if few words.
-                // min-width: 300px -> ensures it's at least a small box.
-                // aspect-ratio: 4/3 -> maintains shape as it grows.
-                // max-width: 90% -> prevents touching screen edges.
+                wrapper.className = "flex flex-wrap justify-center items-center content-center p-4"; 
                 wrapper.style.width = "fit-content";
-                wrapper.style.minWidth = "300px"; 
                 wrapper.style.maxWidth = "90%";
                 wrapper.style.maxHeight = "90%";
-                wrapper.style.aspectRatio = "4/3";
                 
-                // Find Max count for sizing
                 const maxCount = stats.length > 0 ? stats[0].count : 1;
                 const minCount = stats.length > 0 ? stats[stats.length - 1].count : 1;
 
                 centerHeavyStats.forEach(item => {
                     const el = document.createElement('span');
-                    // Dynamic font size logic
                     let scale = (maxCount !== minCount) ? (item.count - minCount) / (maxCount - minCount) : 1;
-                    const sizeRem = 1 + (scale * 4); // Range 1rem to 5rem
+                    const sizeRem = 1 + (scale * 4);
                     const opacity = 0.4 + (scale * 0.6);
 
                     el.style.fontSize = `${sizeRem}rem`;
                     el.style.opacity = opacity;
                     el.className = "m-2 font-bold text-blue-600 leading-none select-none transition hover:scale-110 cursor-default";
                     el.textContent = item.text;
-                    el.title = `${item.count} times (${item.percentage}%)`;
-                    
+                    el.title = `${item.count} times`;
                     wrapper.appendChild(el);
                 });
-                
                 chatContainer.appendChild(wrapper);
             }
         }
 
-        // Font Size Logic
-        fontIncBtn.addEventListener('click', () => {
-            if (fontSize < 32) { fontSize += 2; updateFontSize(); }
-        });
-        fontDecBtn.addEventListener('click', () => {
-            if (fontSize > 10) { fontSize -= 2; updateFontSize(); }
-        });
-        function updateFontSize() {
-            // Only apply to chat modes, not stat modes
-            if (viewMode <= 1) chatContainer.style.fontSize = `${fontSize}px`;
-        }
+        // Font Size
+        if(fontIncBtn) fontIncBtn.addEventListener('click', () => { if (fontSize < 32) { fontSize += 2; updateFontSize(); } });
+        if(fontDecBtn) fontDecBtn.addEventListener('click', () => { if (fontSize > 10) { fontSize -= 2; updateFontSize(); } });
+        function updateFontSize() { if (viewMode <= 1) chatContainer.style.fontSize = `${fontSize}px`; }
 
         function escapeHtml(text) {
             const div = document.createElement('div');
