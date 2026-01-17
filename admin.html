@@ -75,7 +75,7 @@
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
         // ==========================================
-        // 1. CONFIGURATION (PASTE YOUR KEYS HERE)
+        // 1. CONFIGURATION
         // ==========================================
         const firebaseConfig = {
             apiKey: "AIzaSyAR7Tjp8k8dHybMWpmx-MfaV9Ziyl3eADc",
@@ -137,7 +137,13 @@
             }).catch(alert);
         }
 
-        // 4. CLEAR MESSAGES ONLY
+        // 4. ENTER ROOM FUNCTION (New)
+        window.enterRoom = function(roomId) {
+            // Assumes chat.html is in the same folder
+            window.location.href = `chat.html?id=${roomId}`;
+        }
+
+        // 5. CLEAR MESSAGES ONLY
         window.clearMessages = function(roomId) {
             if(!window.confirm("⚠️ Clear history?\n\nThis will delete ALL messages in this room. Users can still join the room.")) return;
 
@@ -151,7 +157,7 @@
                 });
         }
 
-        // 5. DELETE ROOM FUNCTION
+        // 6. DELETE ROOM FUNCTION
         window.deleteRoom = function(roomId) {
             console.log("Delete requested for ID:", roomId);
             if(!window.confirm("Are you sure? This will delete the room AND all messages permanently.")) return;
@@ -170,11 +176,38 @@
             remove(ref(db, `messages/${roomId}`)).catch(err => console.error("Msg cleanup failed", err));
         }
 
-        // 6. COPY LINK FUNCTION
+        // 7. COPY LINK FUNCTION
         window.copyLink = function(roomId) {
-            // Assumes chat.html is in the same folder as admin.html
-            const url = `${window.location.origin}${window.location.pathname.replace('admin.html', 'chat.html')}?id=${roomId}`;
+            // Get current location
+            const currentUrl = window.location.href.split('?')[0]; // Remove existing params
+            let chatUrl = "";
+
+            // A. Check for Google Apps Script / Google Hosting
+            if (window.location.host.includes("script.google.com") || window.location.host.includes("googleusercontent.com")) {
+                const manualUrl = "?page=chat&id=" + roomId;
+                prompt(
+                    "⚠️ Apps Script Detected\n\nBecause this is hosted on Google, the link structure is different.\n\nPlease Copy your current browser URL and ADD this to the end:", 
+                    manualUrl
+                );
+                return;
+            }
+
+            // B. Standard Construction (Netlify, GitHub, Local)
+            if (currentUrl.endsWith('admin.html')) {
+                chatUrl = currentUrl.replace('admin.html', 'chat.html');
+            } else if (currentUrl.endsWith('/')) {
+                chatUrl = currentUrl + 'chat.html';
+            } else {
+                // If path is "site.com/admin", try to guess "site.com/chat.html"
+                const path = window.location.pathname;
+                const directory = path.substring(0, path.lastIndexOf('/'));
+                chatUrl = window.location.origin + directory + '/chat.html';
+            }
             
+            // Append Room ID
+            chatUrl += `?id=${roomId}`;
+            
+            // C. Robust Copy Logic
             function fallbackCopy(text) {
                 const textArea = document.createElement("textarea");
                 textArea.value = text;
@@ -189,6 +222,7 @@
                     if (successful) {
                         alert("Link copied to clipboard!\n" + text);
                     } else {
+                        // Ultimate Fallback: The prompt box
                         prompt("Copy this link manually:", text);
                     }
                 } catch (err) {
@@ -198,19 +232,19 @@
                 document.body.removeChild(textArea);
             }
 
+            // Try modern API first
             if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(url).then(() => {
-                    alert("Link copied to clipboard!\n" + url);
+                navigator.clipboard.writeText(chatUrl).then(() => {
+                    alert("Link copied to clipboard!\n" + chatUrl);
                 }).catch(err => {
-                    console.warn('Clipboard API blocked/failed, trying fallback...', err);
-                    fallbackCopy(url);
+                    fallbackCopy(chatUrl);
                 });
             } else {
-                fallbackCopy(url);
+                fallbackCopy(chatUrl);
             }
         }
 
-        // 7. LISTEN FOR ROOMS (Real-time List)
+        // 8. LISTEN FOR ROOMS (Real-time List)
         function listenForRooms() {
             const roomListEl = document.getElementById('roomList');
             const roomsRef = ref(db, 'rooms');
@@ -240,6 +274,9 @@
                                 </div>
                             </div>
                             <div class="flex gap-2 flex-wrap">
+                                <button onclick="enterRoom('${id}')" class="bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-600 px-3 py-1.5 rounded text-sm transition font-medium">
+                                    ➡️ Enter
+                                </button>
                                 <button onclick="copyLink('${id}')" class="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded text-sm transition font-medium">
                                     🔗 Copy Link
                                 </button>
