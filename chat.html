@@ -6,22 +6,12 @@
     <title>QuickChat</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* Custom scrollbar for cleaner look */
-        .scrollbar-hide::-webkit-scrollbar {
-            display: none;
-        }
-        .scrollbar-hide {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
-        }
-        /* Mode transitions */
-        .fade-in {
-            animation: fadeIn 0.3s ease-in-out;
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
+        /* Custom scrollbar */
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+        /* Animation */
+        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     </style>
 </head>
 <body class="bg-gray-100 h-screen flex flex-col font-sans">
@@ -39,75 +29,45 @@
             <!-- Font Size Controls -->
             <div class="flex items-center bg-gray-100 rounded-lg p-1 mr-1 hidden sm:flex">
                 <button id="fontDecBtn" class="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-white rounded shadow-sm transition" title="Smaller Text">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
-                        <path fill-rule="evenodd" d="M4 10a.75.75 0 01.75-.75h10.5a.75.75 0 010 1.5H4.75A.75.75 0 014 10z" clip-rule="evenodd" />
-                    </svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4"><path fill-rule="evenodd" d="M4 10a.75.75 0 01.75-.75h10.5a.75.75 0 010 1.5H4.75A.75.75 0 014 10z" clip-rule="evenodd" /></svg>
                 </button>
                 <span class="text-xs text-gray-400 font-medium px-2 select-none">A</span>
                 <button id="fontIncBtn" class="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-white rounded shadow-sm transition" title="Larger Text">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
-                        <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
-                    </svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4"><path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" /></svg>
                 </button>
             </div>
 
-            <!-- View Mode Toggle Button -->
+            <!-- View Mode Toggle -->
             <button id="toggleLayoutBtn" class="text-gray-500 hover:text-blue-600 transition p-2 rounded-full hover:bg-gray-100 group relative" title="Change View Mode">
-                <!-- Icon: Standard (Bubbles) -->
-                <svg id="iconStandard" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M8.625 9.75a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12.375m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375m-13.5 3.01c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.184-4.183a1.14 1.14 0 01.778-.332 48.294 48.294 0 005.83-.498c1.585-.233 2.708-1.626 2.708-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />
-                </svg>
-                <!-- Icon: Stream -->
-                <svg id="iconStream" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 hidden">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-                </svg>
-                <!-- Icon: Stat List -->
-                <svg id="iconStatList" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 hidden">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
-                </svg>
-                <!-- Icon: Cloud -->
-                <svg id="iconCloud" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 hidden">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15a4.5 4.5 0 004.5 4.5H18a3.75 3.75 0 001.332-7.257 3 3 0 00-5.17-3.862 3.501 3.501 0 00-6.911 1.96 4.5 4.5 0 00-5 4.659z" />
-                </svg>
-                <!-- Icon: User Grid (NEW) -->
-                <svg id="iconUserGrid" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 hidden">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6z" />
-                </svg>
-                
-                <!-- Tooltip -->
-                <span id="modeTooltip" class="absolute top-full right-0 mt-2 w-max px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition pointer-events-none">
-                    Chat (Bubbles)
-                </span>
+                <svg id="iconStandard" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M8.625 9.75a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12.375m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375m-13.5 3.01c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.184-4.183a1.14 1.14 0 01.778-.332 48.294 48.294 0 005.83-.498c1.585-.233 2.708-1.626 2.708-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" /></svg>
+                <svg id="iconStream" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 hidden"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg>
+                <svg id="iconStatList" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 hidden"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" /></svg>
+                <svg id="iconCloud" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 hidden"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15a4.5 4.5 0 004.5 4.5H18a3.75 3.75 0 001.332-7.257 3 3 0 00-5.17-3.862 3.501 3.501 0 00-6.911 1.96 4.5 4.5 0 00-5 4.659z" /></svg>
+                <svg id="iconUserGrid" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 hidden"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6z" /></svg>
+                <span id="modeTooltip" class="absolute top-full right-0 mt-2 w-max px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition pointer-events-none">Chat (Bubbles)</span>
             </button>
 
-            <!-- QR Code Button (Restored) -->
+            <!-- QR Code Button -->
             <button onclick="showQR()" class="text-gray-500 hover:text-purple-600 transition p-2 rounded-full hover:bg-gray-100" title="Show QR Code">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z" />
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 6.75h.75v.75h-.75v-.75zM6.75 16.5h.75v.75h-.75v-.75zM16.5 6.75h.75v.75h-.75v-.75zM13.5 13.5h.75v.75h-.75v-.75zM13.5 19.5h.75v.75h-.75v-.75zM19.5 13.5h.75v.75h-.75v-.75zM16.5 16.5h.75v.75h-.75v-.75zM16.5 19.5h.75v.75h-.75v-.75z" />
-                </svg>
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z" /><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 6.75h.75v.75h-.75v-.75zM6.75 16.5h.75v.75h-.75v-.75zM16.5 6.75h.75v.75h-.75v-.75zM13.5 13.5h.75v.75h-.75v-.75zM13.5 19.5h.75v.75h-.75v-.75zM19.5 13.5h.75v.75h-.75v-.75zM16.5 16.5h.75v.75h-.75v-.75zM16.5 19.5h.75v.75h-.75v-.75z" /></svg>
             </button>
-            
             <a href="admin.html" class="text-sm text-blue-600 hover:underline">Exit</a>
         </div>
     </header>
 
     <!-- Chat/Stats Area -->
     <main id="chatContainer" class="flex-grow overflow-y-auto p-4 flex flex-col space-y-3 transition-all duration-200" style="font-size: 14px;">
-        <!-- Content injected via JS -->
         <div class="text-center text-gray-400 text-sm mt-10">Welcome to the chat!</div>
     </main>
 
-    <!-- Input Area (Hidden in stats mode) -->
+    <!-- Input Area -->
     <footer id="inputArea" class="bg-white p-3 border-t">
         <form id="messageForm" class="flex gap-2 max-w-4xl mx-auto">
             <input type="text" id="messageInput" autocomplete="off" placeholder="Type a message..." 
                 class="flex-grow px-4 py-3 bg-gray-100 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 transition" disabled>
             <button type="submit" id="sendBtn" 
                 class="bg-blue-600 text-white rounded-full p-3 hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
-                  </svg>
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" /></svg>
             </button>
         </form>
     </footer>
@@ -124,7 +84,7 @@
         </div>
     </div>
 
-    <!-- QR Modal (NEW) -->
+    <!-- QR Modal -->
     <div id="qrModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden backdrop-blur-sm" onclick="closeQR(event)">
         <div class="bg-white p-6 rounded-xl shadow-xl flex flex-col items-center">
             <h3 class="text-lg font-bold text-gray-800 mb-4">Scan to Join</h3>
@@ -132,9 +92,7 @@
                 <img id="qrImage" src="" alt="QR Code" class="w-64 h-64 object-contain">
             </div>
             <p class="text-xs text-gray-500">Share this code with others</p>
-            <button onclick="document.getElementById('qrModal').classList.add('hidden')" class="mt-4 text-sm text-gray-600 hover:text-gray-900 font-medium px-4 py-2 rounded border hover:bg-gray-50">
-                Close
-            </button>
+            <button onclick="document.getElementById('qrModal').classList.add('hidden')" class="mt-4 text-sm text-gray-600 hover:text-gray-900 font-medium px-4 py-2 rounded border hover:bg-gray-50">Close</button>
         </div>
     </div>
 
@@ -143,7 +101,6 @@
         import { getDatabase, ref, push, onValue, get } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
-        // CONFIGURATION
         const firebaseConfig = {
             apiKey: "AIzaSyAR7Tjp8k8dHybMWpmx-MfaV9Ziyl3eADc",
             authDomain: "fwft-quickchat.firebaseapp.com",
@@ -159,14 +116,12 @@
         const db = getDatabase(app);
         const auth = getAuth(app);
 
-        // State
         let currentUser = null;
         let username = localStorage.getItem('chat_username') || "";
         let roomId = new URLSearchParams(window.location.search).get('id');
         let currentMessages = [];
         let fontSize = 14;
         
-        // MODES: 0=Standard, 1=Stream, 2=StatList, 3=StatCloud, 4=UserGrid
         let viewMode = 0; 
         const MODES = [
             { id: 0, name: "Chat (Bubbles)", icon: "iconStandard" },
@@ -176,7 +131,6 @@
             { id: 4, name: "User Grid", icon: "iconUserGrid" }
         ];
 
-        // UI Elements
         const statusEl = document.getElementById('connectionStatus');
         const inputEl = document.getElementById('messageInput');
         const sendBtn = document.getElementById('sendBtn');
@@ -196,18 +150,14 @@
         }
 
         window.closeQR = function(e) {
-            if (e.target.id === 'qrModal') {
-                document.getElementById('qrModal').classList.add('hidden');
-            }
+            if (e.target.id === 'qrModal') document.getElementById('qrModal').classList.add('hidden');
         }
 
-        // Initialize
         if (!roomId) {
             alert("No room ID found! Redirecting to admin...");
             window.location.href = 'admin.html';
         }
 
-        // Auth
         onAuthStateChanged(auth, (user) => {
             if (user) {
                 currentUser = user;
@@ -219,26 +169,18 @@
             }
         });
 
-        // Load Room
         async function loadRoomDetails() {
             const roomRef = ref(db, `rooms/${roomId}`);
             const snapshot = await get(roomRef);
-
             if (!snapshot.exists()) {
                 document.getElementById('roomName').textContent = "Room Not Found";
                 return;
             }
-
             const roomData = snapshot.val();
             document.getElementById('roomName').textContent = roomData.name;
-
-            if (roomData.requireUsername) {
-                if (!username) {
-                    modal.classList.remove('hidden');
-                    document.getElementById('usernameInput').focus();
-                } else {
-                    enableChat();
-                }
+            if (roomData.requireUsername && !username) {
+                modal.classList.remove('hidden');
+                document.getElementById('usernameInput').focus();
             } else {
                 if (!username) username = "Guest";
                 enableChat();
@@ -260,7 +202,6 @@
             inputEl.disabled = false;
             sendBtn.disabled = false;
             inputEl.focus();
-            
             const messagesRef = ref(db, `messages/${roomId}`);
             onValue(messagesRef, (snapshot) => {
                 const data = snapshot.val();
@@ -273,18 +214,15 @@
             e.preventDefault();
             const text = inputEl.value.trim();
             if (!text) return;
-
             push(ref(db, `messages/${roomId}`), {
                 text: text,
                 sender: username,
                 senderUid: currentUser.uid,
                 timestamp: Date.now()
             });
-
             inputEl.value = "";
         });
 
-        // View Logic
         toggleBtn.addEventListener('click', () => {
             viewMode = (viewMode + 1) % MODES.length;
             updateModeUI();
@@ -295,42 +233,25 @@
             MODES.forEach(m => document.getElementById(m.icon).classList.add('hidden'));
             const current = MODES[viewMode];
             document.getElementById(current.icon).classList.remove('hidden');
-            
-            if (viewMode >= 2) {
-                inputArea.classList.add('hidden');
-            } else {
-                inputArea.classList.remove('hidden');
-            }
+            if (viewMode >= 2 && viewMode !== 4) inputArea.classList.add('hidden');
+            else inputArea.classList.remove('hidden');
         }
 
         function calculateStats() {
             if (!currentMessages) return [];
             const counts = {};
             const total = Object.keys(currentMessages).length;
-            
-            Object.values(currentMessages).forEach(msg => {
-                const txt = msg.text; 
-                counts[txt] = (counts[txt] || 0) + 1;
-            });
-
-            return Object.entries(counts)
-                .map(([text, count]) => ({
-                    text,
-                    count,
-                    percentage: ((count / total) * 100).toFixed(1)
-                }))
-                .sort((a, b) => b.count - a.count);
+            Object.values(currentMessages).forEach(msg => { const txt = msg.text; counts[txt] = (counts[txt] || 0) + 1; });
+            return Object.entries(counts).map(([text, count]) => ({ text, count, percentage: ((count / total) * 100).toFixed(1) })).sort((a, b) => b.count - a.count);
         }
 
         function renderView() {
             chatContainer.innerHTML = "";
             chatContainer.className = "flex-grow overflow-y-auto p-4 transition-all duration-200 fade-in"; 
-
             if (!currentMessages) {
                 chatContainer.innerHTML = `<div class="text-center text-gray-400 text-sm mt-10">No data yet.</div>`;
                 return;
             }
-
             const msgArray = Object.values(currentMessages).sort((a, b) => a.timestamp - b.timestamp);
 
             if (viewMode === 0) { // Standard
@@ -367,21 +288,11 @@
                 chatContainer.classList.add('max-w-3xl', 'mx-auto', 'w-full');
                 const table = document.createElement('div');
                 table.className = "bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden";
-                table.innerHTML = `
-                    <div class="grid grid-cols-12 bg-gray-50 p-3 text-xs font-bold text-gray-500 uppercase tracking-wider border-b">
-                        <div class="col-span-8">Message</div>
-                        <div class="col-span-2 text-right">Count</div>
-                        <div class="col-span-2 text-right">%</div>
-                    </div>
-                `;
+                table.innerHTML = `<div class="grid grid-cols-12 bg-gray-50 p-3 text-xs font-bold text-gray-500 uppercase tracking-wider border-b"><div class="col-span-8">Message</div><div class="col-span-2 text-right">Count</div><div class="col-span-2 text-right">%</div></div>`;
                 stats.forEach((item, index) => {
                     const row = document.createElement('div');
                     row.className = `grid grid-cols-12 p-3 text-sm border-b last:border-0 hover:bg-gray-50 ${index < 3 ? 'font-medium text-blue-900' : 'text-gray-700'}`;
-                    row.innerHTML = `
-                        <div class="col-span-8 truncate pr-4" title="${escapeHtml(item.text)}">${index + 1}. ${escapeHtml(item.text)}</div>
-                        <div class="col-span-2 text-right font-mono text-gray-500">${item.count}</div>
-                        <div class="col-span-2 text-right font-mono text-gray-400">${item.percentage}%</div>
-                    `;
+                    row.innerHTML = `<div class="col-span-8 truncate pr-4" title="${escapeHtml(item.text)}">${index + 1}. ${escapeHtml(item.text)}</div><div class="col-span-2 text-right font-mono text-gray-500">${item.count}</div><div class="col-span-2 text-right font-mono text-gray-400">${item.percentage}%</div>`;
                     table.appendChild(row);
                 });
                 chatContainer.appendChild(table);
@@ -390,84 +301,54 @@
                 const stats = calculateStats(); 
                 const centerHeavyStats = [];
                 let left = true;
-                stats.forEach(item => {
-                    if (left) centerHeavyStats.unshift(item); else centerHeavyStats.push(item);
-                    left = !left;
-                });
-
+                stats.forEach(item => { if (left) centerHeavyStats.unshift(item); else centerHeavyStats.push(item); left = !left; });
                 chatContainer.classList.add('flex', 'justify-center', 'items-center', 'h-full', 'overflow-hidden');
                 const wrapper = document.createElement('div');
                 wrapper.className = "flex flex-wrap justify-center items-center content-center p-4"; 
-                wrapper.style.width = "fit-content";
-                wrapper.style.maxWidth = "90%";
-                wrapper.style.maxHeight = "90%";
-                
+                wrapper.style.width = "fit-content"; wrapper.style.maxWidth = "90%"; wrapper.style.maxHeight = "90%";
                 const maxCount = stats.length > 0 ? stats[0].count : 1;
                 const minCount = stats.length > 0 ? stats[stats.length - 1].count : 1;
-
                 centerHeavyStats.forEach(item => {
                     const el = document.createElement('span');
                     let scale = (maxCount !== minCount) ? (item.count - minCount) / (maxCount - minCount) : 1;
                     const sizeRem = 1 + (scale * 4);
                     const opacity = 0.4 + (scale * 0.6);
-
-                    el.style.fontSize = `${sizeRem}rem`;
-                    el.style.opacity = opacity;
+                    el.style.fontSize = `${sizeRem}rem`; el.style.opacity = opacity;
                     el.className = "m-2 font-bold text-blue-600 leading-none select-none transition hover:scale-110 cursor-default";
-                    el.textContent = item.text;
-                    el.title = `${item.count} times`;
+                    el.textContent = item.text; el.title = `${item.count} times`;
                     wrapper.appendChild(el);
                 });
                 chatContainer.appendChild(wrapper);
 
             } else if (viewMode === 4) { // User Grid
                 chatContainer.classList.add('grid', 'grid-cols-2', 'sm:grid-cols-3', 'md:grid-cols-4', 'gap-4', 'content-start');
-                
-                // Group by sender and find latest message
                 const latestByUser = {};
-                msgArray.forEach(msg => {
-                    latestByUser[msg.sender] = msg; // msgArray is sorted chronologically, so last one is latest
+                msgArray.forEach(msg => { latestByUser[msg.sender] = msg; });
+                Object.values(latestByUser).sort((a, b) => a.sender.localeCompare(b.sender)).forEach(msg => {
+                    const isMe = msg.senderUid === currentUser.uid;
+                    const card = document.createElement('div');
+                    // Changed h-32 to min-h-32 to allow growing with font size
+                    card.className = `p-4 rounded-xl shadow-sm border flex flex-col min-h-[8rem] max-h-[20rem] transition hover:shadow-md ${isMe ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-200'}`;
+                    const timeStr = new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                    card.innerHTML = `
+                        <div class="font-bold mb-2 ${isMe ? 'text-blue-700' : 'text-gray-700'} truncate" title="${msg.sender}">
+                            ${msg.sender} ${isMe ? '(You)' : ''}
+                        </div>
+                        <div class="text-gray-600 overflow-y-auto scrollbar-hide break-words flex-grow pr-1">
+                            "${escapeHtml(msg.text)}"
+                        </div>
+                        <div class="text-gray-400 text-right mt-1 pt-1 border-t border-dashed border-gray-100" style="font-size: 0.75em;">
+                            ${timeStr}
+                        </div>
+                    `;
+                    chatContainer.appendChild(card);
                 });
-
-                // Sort users alphabetically
-                Object.values(latestByUser)
-                    .sort((a, b) => a.sender.localeCompare(b.sender))
-                    .forEach(msg => {
-                        const isMe = msg.senderUid === currentUser.uid;
-                        const card = document.createElement('div');
-                        card.className = `p-4 rounded-xl shadow-sm border flex flex-col h-32 transition hover:shadow-md ${
-                            isMe ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-200'
-                        }`;
-                        
-                        const timeStr = new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-                        
-                        // Removed fixed text sizes (text-sm) so font size controls work
-                        card.innerHTML = `
-                            <div class="font-bold mb-2 ${isMe ? 'text-blue-700' : 'text-gray-700'} truncate" title="${msg.sender}">
-                                ${msg.sender} ${isMe ? '(You)' : ''}
-                            </div>
-                            <div class="text-gray-600 overflow-y-auto scrollbar-hide break-words flex-grow pr-1">
-                                "${escapeHtml(msg.text)}"
-                            </div>
-                            <div class="text-gray-400 text-right mt-1 pt-1 border-t border-dashed border-gray-100" style="font-size: 0.75em;">
-                                ${timeStr}
-                            </div>
-                        `;
-                        chatContainer.appendChild(card);
-                    });
             }
         }
 
-        // Font Size
         if(fontIncBtn) fontIncBtn.addEventListener('click', () => { if (fontSize < 72) { fontSize += 2; updateFontSize(); } });
         if(fontDecBtn) fontDecBtn.addEventListener('click', () => { if (fontSize > 8) { fontSize -= 2; updateFontSize(); } });
-        
-        function updateFontSize() { 
-            // Allow resizing in Standard (0), Stream (1), and User Grid (4) modes
-            if (viewMode <= 1 || viewMode === 4) {
-                chatContainer.style.fontSize = `${fontSize}px`; 
-            }
-        }
+        function updateFontSize() { if (viewMode <= 1 || viewMode === 4) chatContainer.style.fontSize = `${fontSize}px`; }
 
         function escapeHtml(text) {
             const div = document.createElement('div');
