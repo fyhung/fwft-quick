@@ -567,8 +567,25 @@
             if(name) joinGame(name);
         });
 
-        document.getElementById('btn-start').addEventListener('click', () => {
-            update(ref(db, `games/${roomId}`), { status: 'playing' });
+        document.getElementById('btn-start').addEventListener('click', async () => {
+            // Distribute players evenly
+            const players = gameState.players;
+            const playerIds = Object.keys(players);
+            const count = playerIds.length;
+            const steps = gameState.settings.steps;
+            
+            const updates = {};
+            
+            playerIds.forEach((pid, index) => {
+                // Calculate even position
+                const pos = Math.floor(index * (steps / count));
+                updates[`players/${pid}/position`] = pos;
+            });
+            
+            // Set status to playing
+            updates['status'] = 'playing';
+            
+            await update(ref(db, `games/${roomId}`), updates);
         });
 
         function showScreen(id) {
