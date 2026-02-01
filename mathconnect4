@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Math Connect 4</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- QRCode.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+    <style>
+        /* Custom Animations */
+        @keyframes bounce-in {
+            0% { transform: scale(0); opacity: 0; }
+            60% { transform: scale(1.1); opacity: 1; }
+            100% { transform: scale(1); }
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+        .piece-drop { animation: bounce-in 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        .shake-anim { animation: shake 0.3s ease-in-out; }
+        
+        .cell { aspect-ratio: 1/1; }
+        
+        /* Board Gradient */
+        .board-bg {
+            background: linear-gradient(180deg, #2563EB 0%, #1D4ED8 100%);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Glassmorphism for panels */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 min-h-screen font-sans selection:bg-blue-200">
+
+    <!-- App Container -->
+    <div id="app" class="max-w-md mx-auto min-h-screen relative flex flex-col">
+        
+        <!-- Header -->
+        <header class="p-4 flex justify-between items-center bg-white shadow-sm z-10">
+            <h1 class="text-xl font-bold text-blue-600"><i class="fa-solid fa-calculator mr-2"></i>Math Connect</h1>
+            <div id="player-badge" class="px-3 py-1 rounded-full text-xs font-bold bg-gray-200 text-gray-500">
+                Connecting...
+            </div>
+        </header>
+
+        <!-- VIEWS -->
+
+        <!-- 1. LOADING -->
+        <div id="view-loading" class="flex-1 flex flex-col items-center justify-center p-6 text-center">
+            <div class="animate-spin text-4xl text-blue-500 mb-4"><i class="fa-solid fa-circle-notch"></i></div>
+            <p class="text-gray-500">Initializing Game Session...</p>
+        </div>
+
+        <!-- 2. LOBBY (HOST) -->
+        <div id="view-lobby-host" class="hidden flex-1 flex flex-col p-6 items-center">
+            <div class="bg-white p-6 rounded-2xl shadow-lg w-full text-center mb-6">
+                <h2 class="text-lg font-bold mb-2">Game Created!</h2>
+                <p class="text-sm text-gray-500 mb-4">Scan to join this session</p>
+                <div id="qrcode" class="flex justify-center mb-4"></div>
+                
+                <div class="flex items-center gap-2 bg-gray-100 p-2 rounded-lg mb-4">
+                    <input type="text" id="share-link" readonly class="bg-transparent text-xs w-full outline-none text-gray-600 font-mono">
+                    <button id="copy-btn" class="text-blue-500 hover:text-blue-700 p-1"><i class="fa-regular fa-copy"></i></button>
+                </div>
+            </div>
+
+            <div class="w-full glass-panel p-4 rounded-xl mb-6">
+                <h3 class="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">Players</h3>
+                <div class="flex flex-col gap-2">
+                    <div class="flex items-center gap-3 p-2 bg-blue-50 rounded-lg border border-blue-100">
+                        <div class="w-8 h-8 rounded-full bg-red-500 flex items-center justify-center text-white shadow-sm">P1</div>
+                        <span class="font-medium">You (Host)</span>
+                    </div>
+                    <div id="lobby-p2-status" class="flex items-center gap-3 p-2 bg-gray-50 rounded-lg border border-gray-100 opacity-60">
+                        <div class="w-8 h-8 rounded-full bg-yellow-400 flex items-center justify-center text-white shadow-sm"><i class="fa-solid fa-spinner animate-spin"></i></div>
+                        <span class="font-medium italic">Waiting for Player 2...</span>
+                    </div>
+                </div>
+            </div>
+
+            <button id="btn-start" disabled class="w-full py-4 rounded-xl bg-gray-300 text-white font-bold text-lg shadow-sm transition-all">
+                Waiting for Opponent...
+            </button>
+        </div>
+
+        <!-- 3. LOBBY (GUEST) -->
+        <div id="view-lobby-guest" class="hidden flex-1 flex flex-col items-center justify-center p-6 text-center">
+            <div class="w-20 h-20 bg-green-100 text-green-500 rounded-full flex items-center justify-center text-3xl mb-4">
+                <i class="fa-solid fa-check"></i>
+            </div>
+            <h2 class="text-2xl font-bold mb-2">You're In!</h2>
+            <p class="text-gray-500">Waiting for host to start the game...</p>
+        </div>
+
+        <!-- 4. GAME BOARD -->
+        <div id="view-game" class="hidden flex-1 flex flex-col relative overflow-hidden">
+            <!-- Top: Board -->
+            <div class="flex-none p-4 pb-2 bg-gray-50">
+                <div class="flex justify-between items-end mb-2 px-1">
+                    <div class="flex flex-col">
+                        <span class="text-xs font-bold text-gray-400 uppercase">Opponent</span>
+                        <div id="opponent-indicator" class="w-3 h-3 rounded-full bg-gray-300 transition-colors"></div>
+                    </div>
+                    <div class="text-xs font-bold bg-blue-100 text-blue-600 px-2 py-1 rounded">
+                        Target: 4 in a row
+                    </div>
+                    <div class="flex flex-col items-end">
+                        <span class="text-xs font-bold text-gray-400 uppercase">You</span>
+                        <div id="me-indicator" class="w-3 h-3 rounded-full bg-red-500 shadow-sm border-2 border-white ring-1 ring-gray-200"></div>
+                    </div>
+                </div>
+
+                <!-- Grid -->
+                <div class="board-bg p-2 rounded-lg shadow-inner relative">
+                    <!-- Drop overlay (Click targets) -->
+                    <div id="drop-zone" class="absolute top-0 left-0 w-full h-full z-10 grid grid-cols-7 gap-1 p-2 pointer-events-none">
+                        <!-- Generated by JS -->
+                    </div>
+
+                    <!-- Slots -->
+                    <div id="game-grid" class="grid grid-cols-7 gap-1 bg-blue-700/50 rounded">
+                        <!-- 42 Cells Generated by JS -->
+                    </div>
+                </div>
+                
+                <div id="move-status" class="mt-2 text-center text-sm font-bold text-gray-400 h-5">
+                    Solve math to get a piece!
+                </div>
+            </div>
+
+            <!-- Bottom: Math Panel -->
+            <div class="flex-1 bg-white border-t border-gray-200 p-4 flex flex-col relative">
+                <!-- Overlay for Frozen State -->
+                <div id="math-frozen" class="hidden absolute inset-0 bg-red-500/10 backdrop-blur-[1px] z-20 flex flex-col items-center justify-center text-red-600 font-bold">
+                    <i class="fa-regular fa-clock text-3xl mb-2"></i>
+                    FROZEN (1s)
+                </div>
+
+                <!-- Overlay for "Make Move" State -->
+                <div id="math-success" class="hidden absolute inset-0 bg-green-500/10 backdrop-blur-[1px] z-20 flex flex-col items-center justify-center text-green-700 font-bold">
+                    <i class="fa-solid fa-arrow-up text-3xl mb-2 animate-bounce"></i>
+                    TAP A COLUMN!
+                </div>
+
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xs font-bold text-gray-400 uppercase">Quick Math</h3>
+                    <div class="text-xs bg-gray-100 px-2 py-1 rounded text-gray-500">Range: -15 to +15</div>
+                </div>
+
+                <div class="flex-1 flex flex-col justify-center">
+                    <div id="question-text" class="text-3xl font-bold text-center mb-6 font-mono text-gray-800">
+                        12 + 4 = ?
+                    </div>
+                    
+                    <div id="options-grid" class="grid grid-cols-2 gap-3">
+                        <!-- Buttons generated by JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 5. GAME OVER MODAL -->
+        <div id="view-gameover" class="hidden fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-6 backdrop-blur-sm">
+            <div class="bg-white w-full max-w-sm rounded-2xl p-6 text-center shadow-2xl transform scale-100 transition-transform">
+                <div id="gameover-icon" class="text-5xl mb-4">🏆</div>
+                <h2 id="gameover-title" class="text-3xl font-bold mb-2">Game Over</h2>
+                <p id="gameover-msg" class="text-gray-600 mb-6">Player Red Wins!</p>
+                <button onclick="window.location.reload()" class="w-full py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition">
+                    Play Again
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, onSnapshot, setDoc, updateDoc, arrayUnion, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        /**
+         * CONFIGURATION & CONSTANTS
+         */
+        const firebaseConfig = {
+            apiKey: "AIzaSyALxmubhxUnug2YrhESmdaOfi4v9yuvnpQ",
+            authDomain: "fwft-math-game.firebaseapp.com",
+            databaseURL: "https://fwft-math-game-default-rtdb.firebaseio.com",
+            projectId: "fwft-math-game",
+            storageBucket: "fwft-math-game.firebasestorage.app",
+            messagingSenderId: "845438631207",
+            appId: "1:845438631207:web:609e660492efc720eabd02"
+        };
+        const APP_ID_PATH = "fwft-math-game"; 
+
+        // Game Constants
+        const ROWS = 6;
+        const COLS = 7;
+        const EMPTY = 0;
+        const P1 = 1; // Red
+        const P2 = 2; // Yellow
+        
+        // Colors for UI
+        const COLORS = {
+            [P1]: 'bg-red-500',
+            [P2]: 'bg-yellow-400'
+        };
+        const NAMES = {
+            [P1]: 'Red',
+            [P2]: 'Yellow'
+        };
+
+        // App State
+        let db, auth, user;
+        let gameId = null;
+        let playerRole = null; // 1 (Host) or 2 (Guest)
+        let hasMove = false; // Does player have a pending move from correct answer?
+        let isFrozen = false;
+        let boardState = new Array(42).fill(0);
+        let gameUnsubscribe = null;
+
+        /**
+         * INITIALIZATION
+         */
+        async function init() {
+            const app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            db = getFirestore(app);
+
+            // Handle URL Params
+            const urlParams = new URLSearchParams(window.location.search);
+            const joinedGameId = urlParams.get('game');
+
+            // Authenticate
+            await signInAnonymously(auth);
+
+            onAuthStateChanged(auth, async (u) => {
+                if (!u) return;
+                user = u;
+                
+                if (joinedGameId) {
+                    gameId = joinedGameId;
+                    playerRole = P2; // Guest is always P2
+                    joinGame(gameId);
+                } else {
+                    playerRole = P1; // Host is always P1
+                    createGame();
+                }
+            });
+        }
+
+        /**
+         * HOST: Create Game
+         */
+        async function createGame() {
+            gameId = generateShortId();
+            
+            // Initial Game State
+            const initialData = {
+                created: Date.now(),
+                hostId: user.uid,
+                status: 'lobby',
+                board: new Array(ROWS * COLS).fill(0),
+                winner: null,
+                players: {
+                    [user.uid]: P1 // Host is P1
+                }
+            };
+
+            await setDoc(doc(db, 'artifacts', APP_ID_PATH, 'public', 'data', gameId), initialData);
+
+            // Setup UI
+            showView('view-lobby-host');
+            updateBadge();
+            
+            // Generate QR
+            const gameUrl = `${window.location.origin}${window.location.pathname}?game=${gameId}`;
+            new QRCode(document.getElementById("qrcode"), {
+                text: gameUrl,
+                width: 128,
+                height: 128
+            });
+            document.getElementById('share-link').value = gameUrl;
+
+            // Listen for players
+            listenToGame();
+        }
+
+        /**
+         * GUEST: Join Game
+         */
+        async function joinGame(gid) {
+            const gameRef = doc(db, 'artifacts', APP_ID_PATH, 'public', 'data', gid);
+            
+            // Add self to players map
+            // Note: In a real app we'd use a transaction to prevent overwriting P2
+            // For this demo, simple update is okay.
+            await updateDoc(gameRef, {
+                [`players.${user.uid}`]: P2
+            });
+
+            showView('view-lobby-guest');
+            updateBadge();
+            listenToGame();
+        }
+
+        /**
+         * FIREBASE LISTENER (Core Loop)
+         */
+        function listenToGame() {
+            gameUnsubscribe = onSnapshot(doc(db, 'artifacts', APP_ID_PATH, 'public', 'data', gameId), (snapshot) => {
+                if (!snapshot.exists()) return;
+                const data = snapshot.data();
+
+                // 1. Check Players (Lobby Logic)
+                const playerCount = Object.keys(data.players || {}).length;
+                if (playerRole === P1 && document.getElementById('view-lobby-host').classList.contains('flex')) {
+                    const statusEl = document.getElementById('lobby-p2-status');
+                    const btnStart = document.getElementById('btn-start');
+                    
+                    if (playerCount >= 2) {
+                        statusEl.innerHTML = `<div class="w-8 h-8 rounded-full bg-yellow-400 flex items-center justify-center text-white font-bold">P2</div><span class="font-bold text-gray-800">Player 2 Connected</span>`;
+                        statusEl.classList.remove('opacity-60');
+                        statusEl.classList.add('bg-green-50', 'border-green-200');
+                        
+                        btnStart.disabled = false;
+                        btnStart.textContent = "START GAME";
+                        btnStart.classList.remove('bg-gray-300', 'text-white');
+                        btnStart.classList.add('bg-blue-600', 'text-white', 'hover:bg-blue-700', 'shadow-lg');
+                        btnStart.onclick = startGame;
+                    }
+                }
+
+                // 2. Check Status (Game Start)
+                if (data.status === 'playing') {
+                    if (document.getElementById('view-game').classList.contains('hidden')) {
+                        showView('view-game');
+                        initBoard();
+                        generateMathQuestion();
+                    }
+                    updateBoardUI(data.board);
+                }
+
+                // 3. Check Winner
+                if (data.status === 'finished') {
+                    endGame(data.winner);
+                }
+            });
+        }
+
+        /**
+         * GAME LOGIC
+         */
+        async function startGame() {
+            await updateDoc(doc(db, 'artifacts', APP_ID_PATH, 'public', 'data', gameId), {
+                status: 'playing'
+            });
+        }
+
+        function initBoard() {
+            const grid = document.getElementById('game-grid');
+            const dropZone = document.getElementById('drop-zone');
+            
+            grid.innerHTML = '';
+            dropZone.innerHTML = '';
+
+            // Create Visual Grid
+            for (let i = 0; i < ROWS * COLS; i++) {
+                const cell = document.createElement('div');
+                cell.className = 'cell bg-white rounded-full shadow-inner';
+                cell.id = `cell-${i}`;
+                grid.appendChild(cell);
+            }
+
+            // Create Click Targets (Columns)
+            for (let c = 0; c < COLS; c++) {
+                const colTrigger = document.createElement('div');
+                colTrigger.className = 'h-full w-full cursor-pointer hover:bg-white/10 transition-colors rounded pointer-events-auto';
+                colTrigger.onclick = () => handleColumnClick(c);
+                dropZone.appendChild(colTrigger);
+            }
+        }
+
+        function updateBoardUI(serverBoard) {
+            boardState = serverBoard; // Update local cache
+            for (let i = 0; i < serverBoard.length; i++) {
+                const cell = document.getElementById(`cell-${i}`);
+                const val = serverBoard[i];
+                cell.className = 'cell rounded-full shadow-inner transition-colors duration-300 ' + 
+                    (val === 0 ? 'bg-white' : (val === P1 ? 'bg-red-500 shadow-md ring-2 ring-red-600/20' : 'bg-yellow-400 shadow-md ring-2 ring-yellow-500/20'));
+                
+                // Add drop animation if it just changed (optional optimization omitted for brevity)
+            }
+        }
+
+        async function handleColumnClick(colIndex) {
+            if (!hasMove) {
+                if (isFrozen) {
+                    showMessage("Wait!", "You are frozen.", "text-red-500");
+                } else {
+                    // Provide slight feedback they need to answer first
+                    const mathPanel = document.querySelector('#view-game > div:last-child');
+                    mathPanel.classList.add('shake-anim');
+                    setTimeout(() => mathPanel.classList.remove('shake-anim'), 300);
+                }
+                return;
+            }
+
+            // Find lowest empty slot in column
+            let targetIndex = -1;
+            for (let r = ROWS - 1; r >= 0; r--) {
+                const idx = r * COLS + colIndex;
+                if (boardState[idx] === 0) {
+                    targetIndex = idx;
+                    break;
+                }
+            }
+
+            if (targetIndex !== -1) {
+                // Optimistic UI Update
+                const newBoard = [...boardState];
+                newBoard[targetIndex] = playerRole;
+                
+                // Consume move immediately
+                hasMove = false;
+                document.getElementById('math-success').classList.add('hidden');
+                document.getElementById('drop-zone').classList.add('pointer-events-none');
+                
+                // Send to Firebase
+                await updateDoc(doc(db, 'artifacts', APP_ID_PATH, 'public', 'data', gameId), {
+                    board: newBoard
+                });
+
+                // Check Win Logic (Locally first to trigger server update if needed)
+                if (checkWin(newBoard, playerRole)) {
+                    await updateDoc(doc(db, 'artifacts', APP_ID_PATH, 'public', 'data', gameId), {
+                        status: 'finished',
+                        winner: playerRole
+                    });
+                } else {
+                    generateMathQuestion(); // Next question
+                }
+            }
+        }
+
+        /**
+         * MATH ENGINE
+         */
+        function generateMathQuestion() {
+            const ops = ['+', '-', '*'];
+            const op = ops[Math.floor(Math.random() * ops.length)];
+            const range = 15;
+            let a = Math.floor(Math.random() * (range * 2 + 1)) - range;
+            let b = Math.floor(Math.random() * (range * 2 + 1)) - range;
+            
+            // Simplify multiplication to avoid huge numbers
+            if (op === '*') {
+                a = Math.floor(Math.random() * 11) - 5; // -5 to 5
+                b = Math.floor(Math.random() * 11) - 5;
+            }
+
+            let correct;
+            if (op === '+') correct = a + b;
+            if (op === '-') correct = a - b;
+            if (op === '*') correct = a * b;
+
+            // Generate Options
+            let options = new Set();
+            options.add(correct);
+            while(options.size < 4) {
+                let offset = Math.floor(Math.random() * 10) - 5;
+                if (offset === 0) offset = 1;
+                options.add(correct + offset);
+            }
+            const choices = Array.from(options).sort(() => Math.random() - 0.5);
+
+            // Render
+            document.getElementById('question-text').textContent = `${a} ${op === '*' ? '×' : op} ${b < 0 ? `(${b})` : b} = ?`;
+            const optsContainer = document.getElementById('options-grid');
+            optsContainer.innerHTML = '';
+            
+            choices.forEach(val => {
+                const btn = document.createElement('button');
+                btn.className = "py-4 rounded-xl bg-gray-100 font-bold text-xl hover:bg-blue-100 hover:text-blue-600 transition active:scale-95";
+                btn.textContent = val;
+                btn.onclick = () => handleAnswer(val === correct, btn);
+                optsContainer.appendChild(btn);
+            });
+        }
+
+        function handleAnswer(isCorrect, btnElement) {
+            if (isFrozen || hasMove) return;
+
+            if (isCorrect) {
+                // Success State
+                hasMove = true;
+                btnElement.classList.remove('bg-gray-100');
+                btnElement.classList.add('bg-green-500', 'text-white');
+                
+                // Show Overlay
+                const successOverlay = document.getElementById('math-success');
+                successOverlay.classList.remove('hidden');
+                
+                // Enable Board Clicking
+                const dropZone = document.getElementById('drop-zone');
+                dropZone.classList.remove('pointer-events-none');
+                
+            } else {
+                // Penalty State
+                isFrozen = true;
+                btnElement.classList.add('bg-red-500', 'text-white', 'shake-anim');
+                document.getElementById('math-frozen').classList.remove('hidden');
+                
+                setTimeout(() => {
+                    isFrozen = false;
+                    document.getElementById('math-frozen').classList.add('hidden');
+                    btnElement.classList.remove('bg-red-500', 'text-white', 'shake-anim');
+                    btnElement.classList.add('bg-gray-100'); // Reset style
+                }, 1000);
+            }
+        }
+
+        /**
+         * WIN LOGIC (Standard Connect 4)
+         */
+        function checkWin(board, player) {
+            // Helper to get value
+            const getVal = (r, c) => board[r * COLS + c];
+
+            // Horizontal
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS - 3; c++) {
+                    if (getVal(r,c) == player && getVal(r,c+1) == player && getVal(r,c+2) == player && getVal(r,c+3) == player) return true;
+                }
+            }
+            // Vertical
+            for (let r = 0; r < ROWS - 3; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    if (getVal(r,c) == player && getVal(r+1,c) == player && getVal(r+2,c) == player && getVal(r+3,c) == player) return true;
+                }
+            }
+            // Diagonal Down-Right
+            for (let r = 0; r < ROWS - 3; r++) {
+                for (let c = 0; c < COLS - 3; c++) {
+                    if (getVal(r,c) == player && getVal(r+1,c+1) == player && getVal(r+2,c+2) == player && getVal(r+3,c+3) == player) return true;
+                }
+            }
+            // Diagonal Up-Right
+            for (let r = 3; r < ROWS; r++) {
+                for (let c = 0; c < COLS - 3; c++) {
+                    if (getVal(r,c) == player && getVal(r-1,c+1) == player && getVal(r-2,c+2) == player && getVal(r-3,c+3) == player) return true;
+                }
+            }
+            return false;
+        }
+
+        function endGame(winnerRole) {
+            const modal = document.getElementById('view-gameover');
+            const title = document.getElementById('gameover-title');
+            const msg = document.getElementById('gameover-msg');
+            const icon = document.getElementById('gameover-icon');
+
+            modal.classList.remove('hidden');
+            
+            if (winnerRole === playerRole) {
+                title.textContent = "VICTORY!";
+                title.classList.add('text-green-600');
+                msg.textContent = "You connected four!";
+                icon.textContent = "🏆";
+            } else {
+                title.textContent = "DEFEAT";
+                title.classList.add('text-red-600');
+                msg.textContent = "Opponent connected four.";
+                icon.textContent = "💀";
+            }
+        }
+
+        /**
+         * UTILS
+         */
+        function showView(viewId) {
+            ['view-loading', 'view-lobby-host', 'view-lobby-guest', 'view-game'].forEach(id => {
+                document.getElementById(id).classList.add('hidden');
+            });
+            document.getElementById(viewId).classList.remove('hidden');
+            if (viewId === 'view-lobby-host' || viewId === 'view-lobby-guest') {
+                document.getElementById(viewId).classList.add('flex');
+            }
+        }
+
+        function updateBadge() {
+            const el = document.getElementById('player-badge');
+            el.textContent = playerRole === P1 ? "PLAYER 1 (RED)" : "PLAYER 2 (YELLOW)";
+            el.className = `px-3 py-1 rounded-full text-xs font-bold text-white shadow-sm ${playerRole === P1 ? 'bg-red-500' : 'bg-yellow-400'}`;
+            
+            // Update my indicator in game view too
+            const myInd = document.getElementById('me-indicator');
+            myInd.className = `w-3 h-3 rounded-full shadow-sm border-2 border-white ring-1 ring-gray-200 ${playerRole === P1 ? 'bg-red-500' : 'bg-yellow-400'}`;
+            
+            const opInd = document.getElementById('opponent-indicator');
+            opInd.className = `w-3 h-3 rounded-full shadow-sm ring-1 ring-gray-200 ${playerRole === P1 ? 'bg-yellow-400' : 'bg-red-500'}`;
+        }
+
+        function generateShortId() {
+            return Math.random().toString(36).substring(2, 8).toUpperCase();
+        }
+        
+        function showMessage(title, text, colorClass) {
+            // Simple toast logic could go here, for now using console/alert fallback or UI feedback
+            // Using visual shake on math board instead
+        }
+
+        // Copy Link Logic
+        document.getElementById('copy-btn').onclick = () => {
+            const link = document.getElementById('share-link');
+            link.select();
+            document.execCommand('copy');
+            // Visual feedback
+            const btn = document.getElementById('copy-btn');
+            btn.innerHTML = '<i class="fa-solid fa-check"></i>';
+            setTimeout(() => btn.innerHTML = '<i class="fa-regular fa-copy"></i>', 2000);
+        };
+
+        // Initialize
+        window.addEventListener('load', init);
+
+    </script>
+</body>
+</html>
