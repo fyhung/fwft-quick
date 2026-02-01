@@ -62,6 +62,7 @@
         <div id="view-loading" class="flex-1 flex flex-col items-center justify-center p-6 text-center">
             <div class="animate-spin text-4xl text-blue-500 mb-4"><i class="fa-solid fa-circle-notch"></i></div>
             <p id="loading-text" class="text-gray-500">Initializing Game Session...</p>
+            <p id="error-text" class="text-red-500 text-sm mt-4 hidden"></p>
         </div>
 
         <!-- 2. LOBBY (HOST) -->
@@ -205,7 +206,7 @@
             appId: "1:845438631207:web:609e660492efc720eabd02"
         };
         
-        // Use environment config if available (Prevents initialization errors)
+        // Use environment config if available
         if (typeof __firebase_config !== 'undefined') {
             firebaseConfig = JSON.parse(__firebase_config);
         }
@@ -215,18 +216,19 @@
             appId = __app_id;
         }
 
+        const GAME_COLLECTION = 'sessions'; // Added subcollection name to fix path structure
+
         // Game Constants
         const ROWS = 6;
         const COLS = 7;
-        const EMPTY = 0;
         const P1 = 1; // Red
         const P2 = 2; // Yellow
         
         // App State
         let db, auth, user;
         let gameId = null;
-        let playerRole = null; // 1 (Host) or 2 (Guest)
-        let hasMove = false; // Does player have a pending move from correct answer?
+        let playerRole = null; 
+        let hasMove = false; 
         let isFrozen = false;
         let boardState = new Array(42).fill(0);
         let gameUnsubscribe = null;
@@ -240,11 +242,9 @@
                 auth = getAuth(app);
                 db = getFirestore(app);
 
-                // Handle URL Params
                 const urlParams = new URLSearchParams(window.location.search);
                 const joinedGameId = urlParams.get('game');
 
-                // Authenticate correctly for the environment
                 document.getElementById('loading-text').textContent = "Authenticating...";
                 
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
@@ -258,20 +258,30 @@
                     user = u;
                     document.getElementById('loading-text').textContent = "Joining Session...";
                     
-                    if (joinedGameId) {
-                        gameId = joinedGameId;
-                        playerRole = P2; // Guest is always P2
-                        joinGame(gameId);
-                    } else {
-                        playerRole = P1; // Host is always P1
-                        createGame();
+                    try {
+                        if (joinedGameId) {
+                            gameId = joinedGameId;
+                            playerRole = P2;
+                            await joinGame(gameId);
+                        } else {
+                            playerRole = P1;
+                            await createGame();
+                        }
+                    } catch (err) {
+                        showError("Failed to start session: " + err.message);
                     }
                 });
 
             } catch (err) {
-                console.error("Initialization Error:", err);
-                document.getElementById('loading-text').textContent = "Error: " + err.message;
+                showError("Init Error: " + err.message);
             }
+        }
+
+        function showError(msg) {
+            console.error(msg);
+            const el = document.getElementById('error-text');
+            el.textContent = msg;
+            el.classList.remove('hidden');
         }
 
         /**
@@ -280,7 +290,6 @@
         async function createGame() {
             gameId = generateShortId();
             
-            // Initial Game State
             const initialData = {
                 created: Date.now(),
                 hostId: user.uid,
@@ -288,17 +297,16 @@
                 board: new Array(ROWS * COLS).fill(0),
                 winner: null,
                 players: {
-                    [user.uid]: P1 // Host is P1
+                    [user.uid]: P1
                 }
             };
 
-            await setDoc(doc(db, 'artifacts', appId, 'public', 'data', gameId), initialData);
+            // FIX: Added GAME_COLLECTION to ensure even number of path segments
+            await setDoc(doc(db, 'artifacts', appId, 'public', 'data', GAME_COLLECTION, gameId), initialData);
 
-            // Setup UI
             showView('view-lobby-host');
             updateBadge();
             
-            // Generate QR
             const gameUrl = `${window.location.origin}${window.location.pathname}?game=${gameId}`;
             new QRCode(document.getElementById("qrcode"), {
                 text: gameUrl,
@@ -307,7 +315,6 @@
             });
             document.getElementById('share-link').value = gameUrl;
 
-            // Listen for players
             listenToGame();
         }
 
@@ -315,9 +322,9 @@
          * GUEST: Join Game
          */
         async function joinGame(gid) {
-            const gameRef = doc(db, 'artifacts', appId, 'public', 'data', gid);
+            // FIX: Added GAME_COLLECTION to ensure even number of path segments
+            const gameRef = doc(db, 'artifacts', appId, 'public', 'data', GAME_COLLECTION, gid);
             
-            // Add self to players map
             await updateDoc(gameRef, {
                 [`players.${user.uid}`]: P2
             });
@@ -328,17 +335,18 @@
         }
 
         /**
-         * FIREBASE LISTENER (Core Loop)
+         * FIREBASE LISTENER
          */
         function listenToGame() {
-            gameUnsubscribe = onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', gameId), (snapshot) => {
+            // FIX: Added GAME_COLLECTION to ensure even number of path segments
+            gameUnsubscribe = onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', GAME_COLLECTION, gameId), (snapshot) => {
                 if (!snapshot.exists()) {
-                    console.warn("Game doc does not exist.");
+                    showError("Game session not found or deleted.");
                     return;
                 }
                 const data = snapshot.data();
 
-                // 1. Check Players (Lobby Logic)
+                // 1. Lobby Logic
                 const playerCount = Object.keys(data.players || {}).length;
                 if (playerRole === P1 && document.getElementById('view-lobby-host').classList.contains('flex')) {
                     const statusEl = document.getElementById('lobby-p2-status');
@@ -357,7 +365,7 @@
                     }
                 }
 
-                // 2. Check Status (Game Start)
+                // 2. Game Start
                 if (data.status === 'playing') {
                     if (document.getElementById('view-game').classList.contains('hidden')) {
                         showView('view-game');
@@ -367,12 +375,12 @@
                     updateBoardUI(data.board);
                 }
 
-                // 3. Check Winner
+                // 3. Winner
                 if (data.status === 'finished') {
                     endGame(data.winner);
                 }
             }, (error) => {
-                console.error("Game listener error:", error);
+                showError("Sync Error: " + error.message);
             });
         }
 
@@ -380,7 +388,8 @@
          * GAME LOGIC
          */
         async function startGame() {
-            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', gameId), {
+            // FIX: Added GAME_COLLECTION
+            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', GAME_COLLECTION, gameId), {
                 status: 'playing'
             });
         }
@@ -392,7 +401,6 @@
             grid.innerHTML = '';
             dropZone.innerHTML = '';
 
-            // Create Visual Grid
             for (let i = 0; i < ROWS * COLS; i++) {
                 const cell = document.createElement('div');
                 cell.className = 'cell bg-white rounded-full shadow-inner';
@@ -400,7 +408,6 @@
                 grid.appendChild(cell);
             }
 
-            // Create Click Targets (Columns)
             for (let c = 0; c < COLS; c++) {
                 const colTrigger = document.createElement('div');
                 colTrigger.className = 'h-full w-full cursor-pointer hover:bg-white/10 transition-colors rounded pointer-events-auto';
@@ -410,14 +417,12 @@
         }
 
         function updateBoardUI(serverBoard) {
-            boardState = serverBoard; // Update local cache
+            boardState = serverBoard; 
             for (let i = 0; i < serverBoard.length; i++) {
                 const cell = document.getElementById(`cell-${i}`);
                 const val = serverBoard[i];
                 cell.className = 'cell rounded-full shadow-inner transition-colors duration-300 ' + 
                     (val === 0 ? 'bg-white' : (val === P1 ? 'bg-red-500 shadow-md ring-2 ring-red-600/20' : 'bg-yellow-400 shadow-md ring-2 ring-yellow-500/20'));
-                
-                // Add drop animation if it just changed (optional optimization omitted for brevity)
             }
         }
 
@@ -426,7 +431,6 @@
                 if (isFrozen) {
                     showMessage("Wait!", "You are frozen.", "text-red-500");
                 } else {
-                    // Provide slight feedback they need to answer first
                     const mathPanel = document.querySelector('#view-game > div:last-child');
                     mathPanel.classList.add('shake-anim');
                     setTimeout(() => mathPanel.classList.remove('shake-anim'), 300);
@@ -434,7 +438,6 @@
                 return;
             }
 
-            // Find lowest empty slot in column
             let targetIndex = -1;
             for (let r = ROWS - 1; r >= 0; r--) {
                 const idx = r * COLS + colIndex;
@@ -445,28 +448,26 @@
             }
 
             if (targetIndex !== -1) {
-                // Optimistic UI Update
                 const newBoard = [...boardState];
                 newBoard[targetIndex] = playerRole;
                 
-                // Consume move immediately
                 hasMove = false;
                 document.getElementById('math-success').classList.add('hidden');
                 document.getElementById('drop-zone').classList.add('pointer-events-none');
                 
-                // Send to Firebase
-                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', gameId), {
+                // FIX: Added GAME_COLLECTION
+                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', GAME_COLLECTION, gameId), {
                     board: newBoard
                 });
 
-                // Check Win Logic (Locally first to trigger server update if needed)
                 if (checkWin(newBoard, playerRole)) {
-                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', gameId), {
+                    // FIX: Added GAME_COLLECTION
+                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', GAME_COLLECTION, gameId), {
                         status: 'finished',
                         winner: playerRole
                     });
                 } else {
-                    generateMathQuestion(); // Next question
+                    generateMathQuestion();
                 }
             }
         }
@@ -481,9 +482,8 @@
             let a = Math.floor(Math.random() * (range * 2 + 1)) - range;
             let b = Math.floor(Math.random() * (range * 2 + 1)) - range;
             
-            // Simplify multiplication to avoid huge numbers
             if (op === '*') {
-                a = Math.floor(Math.random() * 11) - 5; // -5 to 5
+                a = Math.floor(Math.random() * 11) - 5; 
                 b = Math.floor(Math.random() * 11) - 5;
             }
 
@@ -492,7 +492,6 @@
             if (op === '-') correct = a - b;
             if (op === '*') correct = a * b;
 
-            // Generate Options
             let options = new Set();
             options.add(correct);
             while(options.size < 4) {
@@ -502,7 +501,6 @@
             }
             const choices = Array.from(options).sort(() => Math.random() - 0.5);
 
-            // Render
             document.getElementById('question-text').textContent = `${a} ${op === '*' ? '×' : op} ${b < 0 ? `(${b})` : b} = ?`;
             const optsContainer = document.getElementById('options-grid');
             optsContainer.innerHTML = '';
@@ -520,21 +518,14 @@
             if (isFrozen || hasMove) return;
 
             if (isCorrect) {
-                // Success State
                 hasMove = true;
                 btnElement.classList.remove('bg-gray-100');
                 btnElement.classList.add('bg-green-500', 'text-white');
-                
-                // Show Overlay
                 const successOverlay = document.getElementById('math-success');
                 successOverlay.classList.remove('hidden');
-                
-                // Enable Board Clicking
                 const dropZone = document.getElementById('drop-zone');
                 dropZone.classList.remove('pointer-events-none');
-                
             } else {
-                // Penalty State
                 isFrozen = true;
                 btnElement.classList.add('bg-red-500', 'text-white', 'shake-anim');
                 document.getElementById('math-frozen').classList.remove('hidden');
@@ -543,37 +534,32 @@
                     isFrozen = false;
                     document.getElementById('math-frozen').classList.add('hidden');
                     btnElement.classList.remove('bg-red-500', 'text-white', 'shake-anim');
-                    btnElement.classList.add('bg-gray-100'); // Reset style
+                    btnElement.classList.add('bg-gray-100');
                 }, 1000);
             }
         }
 
         /**
-         * WIN LOGIC (Standard Connect 4)
+         * WIN LOGIC
          */
         function checkWin(board, player) {
-            // Helper to get value
             const getVal = (r, c) => board[r * COLS + c];
 
-            // Horizontal
             for (let r = 0; r < ROWS; r++) {
                 for (let c = 0; c < COLS - 3; c++) {
                     if (getVal(r,c) == player && getVal(r,c+1) == player && getVal(r,c+2) == player && getVal(r,c+3) == player) return true;
                 }
             }
-            // Vertical
             for (let r = 0; r < ROWS - 3; r++) {
                 for (let c = 0; c < COLS; c++) {
                     if (getVal(r,c) == player && getVal(r+1,c) == player && getVal(r+2,c) == player && getVal(r+3,c) == player) return true;
                 }
             }
-            // Diagonal Down-Right
             for (let r = 0; r < ROWS - 3; r++) {
                 for (let c = 0; c < COLS - 3; c++) {
                     if (getVal(r,c) == player && getVal(r+1,c+1) == player && getVal(r+2,c+2) == player && getVal(r+3,c+3) == player) return true;
                 }
             }
-            // Diagonal Up-Right
             for (let r = 3; r < ROWS; r++) {
                 for (let c = 0; c < COLS - 3; c++) {
                     if (getVal(r,c) == player && getVal(r-1,c+1) == player && getVal(r-2,c+2) == player && getVal(r-3,c+3) == player) return true;
@@ -621,7 +607,6 @@
             el.textContent = playerRole === P1 ? "PLAYER 1 (RED)" : "PLAYER 2 (YELLOW)";
             el.className = `px-3 py-1 rounded-full text-xs font-bold text-white shadow-sm ${playerRole === P1 ? 'bg-red-500' : 'bg-yellow-400'}`;
             
-            // Update my indicator in game view too
             const myInd = document.getElementById('me-indicator');
             myInd.className = `w-3 h-3 rounded-full shadow-sm border-2 border-white ring-1 ring-gray-200 ${playerRole === P1 ? 'bg-red-500' : 'bg-yellow-400'}`;
             
@@ -634,22 +619,17 @@
         }
         
         function showMessage(title, text, colorClass) {
-            // Simple toast logic could go here, for now using console/alert fallback or UI feedback
-            // Using visual shake on math board instead
         }
 
-        // Copy Link Logic
         document.getElementById('copy-btn').onclick = () => {
             const link = document.getElementById('share-link');
             link.select();
             document.execCommand('copy');
-            // Visual feedback
             const btn = document.getElementById('copy-btn');
             btn.innerHTML = '<i class="fa-solid fa-check"></i>';
             setTimeout(() => btn.innerHTML = '<i class="fa-regular fa-copy"></i>', 2000);
         };
 
-        // Initialize
         window.addEventListener('load', init);
 
     </script>
