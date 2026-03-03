@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Python 基礎魔法書：從零開始的程式指南</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;700&family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #fcfaf8; /* Warm neutral background */
+            color: #292524; /* Stone 800 */
+        }
+        .font-code {
+            font-family: 'Fira Code', monospace;
+        }
+        
+        /* Custom Scrollbar for IDE */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #1c1917; 
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #44403c; 
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #57534e; 
+        }
+
+        /* Chart Container Requirements */
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 40vh;
+            max-height: 400px;
+            min-height: 250px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 350px;
+            }
+        }
+
+        /* Transition for interactive elements */
+        .fade-in {
+            animation: fadeIn 0.4s ease-in forwards;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Syntax Highlighting Colors */
+        .token-comment { color: #6b7280; font-style: italic; }
+        .token-string { color: #fde047; }
+        .token-keyword { color: #60a5fa; font-weight: 500; }
+        .token-boolean { color: #f472b6; font-weight: 500; }
+        .token-function { color: #c084fc; }
+        .token-number { color: #fdba74; }
+    </style>
+
+    <!-- Chosen Palette: Warm Neutrals (Stone) with Python Accent Colors (Blue/Yellow for code highlights) -->
+    <!-- Application Structure Plan: 
+         1. Layout: Sidebar Navigation (left) + Dynamic Content Area (right). This dashboard approach allows non-linear exploration and prevents infinite scrolling.
+         2. Landing Page (Overview): Introduces the course and includes a Chart.js visualization comparing search algorithms to show the "Why" behind learning algorithms.
+         3. Module View: Each concept is split into "Theory (Context)", "Practice (IDE Simulator)", and "Visual/Quiz". 
+         4. Interaction: Users click "Run Code" to reveal outputs, and "Reveal Answer" for quizzes, making learning active. HTML/CSS structural models simulate memory concepts without using external SVG/Mermaid. 
+    -->
+    <!-- Visualization & Content Choices: 
+         - Search Algorithm Comparison -> Goal: Persuade/Inform -> Viz: Line Chart (Chart.js) -> Interaction: Hover tooltips -> Justification: Shows practical value of later chapters.
+         - Code Examples -> Goal: Demonstrate -> Viz: Custom Dark-mode IDE block with regex-based syntax highlighting -> Interaction: "Run" button reveals output -> Justification: Mimics real coding environment.
+         - Variable/List Visualization -> Goal: Explain abstract concepts -> Viz: HTML/Tailwind Flex/Grid blocks -> Interaction: CSS transitions -> Justification: Builds mental models (boxes for variables, grids for arrays) natively in DOM without SVG/Mermaid. 
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+</head>
+<body class="flex h-screen overflow-hidden antialiased">
+
+    <!-- Sidebar Navigation -->
+    <aside class="w-72 bg-stone-900 text-stone-300 flex flex-col h-full shadow-xl z-20 transition-transform duration-300 absolute md:relative -translate-x-full md:translate-x-0" id="sidebar">
+        <div class="p-6 bg-stone-950 flex justify-between items-center">
+            <div>
+                <h1 class="text-xl font-bold text-white flex items-center gap-2">
+                    <span>🐍</span> Python 魔法書
+                </h1>
+                <p class="text-xs text-stone-400 mt-1">從零開始的程式指南</p>
+            </div>
+            <button id="closeSidebar" class="md:hidden text-stone-400 hover:text-white text-2xl">&times;</button>
+        </div>
+        <div class="overflow-y-auto flex-1 custom-scrollbar py-4 px-3" id="nav-container">
+            <!-- Navigation items injected by JS -->
+        </div>
+        <div class="p-4 bg-stone-950 text-xs text-stone-500 text-center border-t border-stone-800">
+            互動式教學儀表板 v1.0
+        </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 flex flex-col h-full relative overflow-hidden bg-[#fcfaf8]">
+        <!-- Mobile Header -->
+        <header class="md:hidden bg-white shadow-sm p-4 flex items-center justify-between z-10">
+            <h2 class="font-bold text-stone-800">Python 魔法書</h2>
+            <button id="openSidebar" class="text-stone-600 text-2xl">&#9776;</button>
+        </header>
+
+        <!-- Dynamic Content Container -->
+        <div id="content-area" class="flex-1 overflow-y-auto p-6 md:p-10 scroll-smooth">
+            <!-- Content injected by JS -->
+        </div>
+    </main>
+
+    <!-- JavaScript Logic -->
+    <script>
+        // --- Data Storage: Source Report Content ---
+        const courseData = [
+            {
+                id: 0,
+                title: "0. 課程總覽與學習地圖",
+                concept: "歡迎來到 Python 的世界！這份指南將以最直白的方式，帶你一步步理解程式語言的核心邏輯。不用擔心語法太複雜，我們將把每個概念拆解成最容易吸收的模樣。在這趟旅程中，你不僅會學到語法，更會學到「演算法」的威力。看看下方的圖表，這就是為什麼我們要學習如「二元搜尋法」這類進階技巧的原因！",
+                isOverview: true
+            },
+            {
+                id: 1,
+                title: "1. print()：讓程式向世界問好",
+                concept: "print() 是 Python 中最基礎的輸出函式，它的用途是將我們想表達的文字或資料顯示在螢幕上。這就像是給了程式一個大聲公，讓它能向世界發聲。",
+                code: `# 輸出一段文字字串 (String)\nprint("Hello World!")\n\n# 也可以直接輸出運算結果\nprint(2026)`,
+                output: "Hello World!\n2026",
+                tipType: "⚠️ 常見錯誤（SyntaxError）",
+                tip: "忘記加上引號！文字字串必須被單引號 ' ' 或雙引號 \" \" 包圍，否則 Python 會看不懂你想表達什麼而報錯。",
+                practice: "請嘗試寫一行程式碼，在畫面上印出：「我準備好學習 Python 了！」。",
+                visual: "io_box"
+            },
+            {
+                id: 2,
+                title: "2. 算術運算與資料型態",
+                concept: "Python 可以輕鬆處理各種數學運算（+, -, *, /, %）。在運算時，資料會分為不同的「型態（Data Types）」，例如整數（Integer）與帶有小數點的浮點數（Float）。",
+                code: `# 加減乘除運算\n# 注意：在 Python 中除法 (/) 的結果預設會是浮點數\nprint(10 + 5)\nprint(10 / 2)\n\n# 取餘數運算 (%)，這在判斷奇偶數時非常實用\nprint(10 % 3)`,
+                output: "15\n5.0\n1",
+                tipType: "⚠️ 常見錯誤（TypeError）",
+                tip: "不能把數字和文字直接相加！例如 5 + \"蘋果\" 會導致程式崩潰。",
+                practice: "請使用 print() 和 % 運算子，算出 25 除以 7 的餘數是多少。",
+                visual: "math_operators"
+            },
+            {
+                id: 3,
+                title: "3. 變數與 input()",
+                concept: "變數（Variables）就像是貼上標籤的收納箱，用來儲存資料（這稱為「賦值」）。配合 input() 函式，程式就能暫停下來，接收使用者輸入的資料，實現真正的互動。",
+                code: `# 建立一個變數 name，並透過 input() 讓使用者輸入\nname = input("請輸入你的名字：")\n\n# 將變數裡面的資料印出來\nprint("你好，" + name + "！歡迎來到 Python 課程。")`,
+                output: "請輸入你的名字：[使用者輸入: 愛麗絲]\n你好，愛麗絲！歡迎來到 Python 課程。",
+                tipType: "⚠️ 常見錯誤（型態地雷）",
+                tip: "input() 取得的資料永遠是「字串」型態！如果你希望使用者輸入數字並進行數學運算，必須先用 int() 將它轉換為整數。",
+                practice: "寫一個程式，詢問使用者的年紀，並印出：「你今年 X 歲了！」",
+                visual: "variable_box"
+            },
+            {
+                id: 4,
+                title: "4. 變數交換 (Swapping)",
+                concept: "當我們想把兩個變數裡面的資料互換時，不能直接把 A 倒進 B（這會讓 B 原本的資料消失）。我們需要借用第三個「暫存變數（Temp Variable）」來完成交換。",
+                code: `a = "蘋果"\nb = "香蕉"\n\n# 步驟一：把 a 暫存在 temp 裡\ntemp = a\n# 步驟二：把 b 放進 a 裡\na = b\n# 步驟三：把暫存的 temp (蘋果) 放回 b 裡\nb = temp\n\nprint("a 變成了:", a)\nprint("b 變成了:", b)`,
+                output: "a 變成了: 香蕉\nb 變成了: 蘋果",
+                tipType: "💡 進階技巧（Pythonic Way）",
+                tip: "其實在 Python 中，有一個獨家秘訣可以不用 temp 變數：直接寫 a, b = b, a 就能完成交換！但理解 Temp 概念對學習演算法非常重要喔。",
+                practice: "宣告 x = 10 與 y = 20，請用 temp 變數法將它們的值互換並印出。",
+                visual: "swap_cups"
+            },
+            {
+                id: 5,
+                title: "5. 字串操作 (String)",
+                concept: "字串不只是一串文字，我們還可以對它進行操作！使用 + 可以將多段文字「拼接」在一起；我們也可以呼叫字串專屬的方法（Methods）來改變英文字母的大小寫。",
+                code: `greeting = "Hello"\ntarget = "World"\n\n# 字串拼接 (Concatenation)，中間記得補上空白鍵\nmessage = greeting + " " + target\nprint(message)\n\n# 改變英文字母大小寫\nprint(message.upper()) # 全部轉大寫\nprint(message.lower()) # 全部轉小寫`,
+                output: "Hello World\nHELLO WORLD\nhello world",
+                practice: "將你的名和姓存在兩個變數中，將它們拼接在一起，並全部轉換為大寫字母印出。",
+                visual: "train_concat"
+            },
+            {
+                id: 6,
+                title: "6. 布林值與比較運算子",
+                concept: "程式如何思考？靠的就是布林值（Booleans），它只有兩種狀態：True（真）或 False（假）。透過比較運算子（==, !=, <, >），我們可以讓程式判斷事情的真偽。",
+                code: `score = 85\n\n# 檢查是否及格 (大於等於 60)\nis_pass = score >= 60\nprint("是否及格？", is_pass)\n\n# 檢查是否滿分 (== 代表「等於」，注意要兩個等號)\nis_perfect = score == 100\nprint("是否滿分？", is_perfect)`,
+                output: "是否及格？ True\n是否滿分？ False",
+                tipType: "⚠️ 常見錯誤（賦值 vs 比較）",
+                tip: "一個等號 = 是「賦值」（把資料放進變數）；兩個等號 == 才是「比較是否相等」。千萬別搞混了！",
+                practice: "設定變數 my_money = 500，用程式判斷並印出 my_money != 0 的結果。",
+                visual: "balance_scale"
+            },
+            {
+                id: 7,
+                title: "7. 邏輯運算子 (and, or, not)",
+                concept: "如果我們需要同時滿足多個條件怎麼辦？這時候就需要邏輯運算子：and（而且）、or（或者）、not（相反）。它們能將多個簡單的布林邏輯組合成複雜的決策條件。",
+                code: `has_ticket = True\nis_vip = False\n\n# and：兩個條件都必須為 True，結果才是 True\ncan_enter_normal = has_ticket and not is_vip\nprint("一般通道放行：", can_enter_normal)\n\n# or：只要其中一個為 True，結果就是 True\ncan_enter_fast = is_vip or has_ticket\nprint("快速通道放行：", can_enter_fast)`,
+                output: "一般通道放行： True\n快速通道放行： True",
+                practice: "設定變數 age = 20 與 is_student = True。請寫出一個判斷式：年齡大於 18「且」是學生。",
+                visual: "logic_gates"
+            },
+            {
+                id: 8,
+                title: "8. while 迴圈",
+                concept: "while 迴圈就像是一個執著的機器人。只要你給它的條件判斷為 True，它就會不斷地重複執行區塊內的程式碼，直到條件變成 False 為止。",
+                code: `countdown = 3\n\n# 當 countdown 大於 0 時，持續重複執行\nwhile countdown > 0:\n    print("倒數：", countdown)\n    # 每次執行完，把倒數減 1 (極度重要！)\n    countdown = countdown - 1 \n\nprint("新年快樂！")`,
+                output: "倒數： 3\n倒數： 2\n倒數： 1\n新年快樂！",
+                tipType: "⚠️ 常見錯誤（無窮迴圈）",
+                tip: "如果你忘記在迴圈內改變條件（例如忘記寫 countdown = countdown - 1），條件永遠為 True，程式就會陷入「無窮迴圈（Infinite Loop）」，當機跑到天荒地老！",
+                practice: "寫一個 while 迴圈，從 1 印到 5。",
+                visual: "loop_cycle"
+            },
+            {
+                id: 9,
+                title: "9. for 迴圈與 range()",
+                concept: "如果你已經知道程式需要重複執行幾次，for 迴圈搭配 range() 函式是最好的選擇。它會自動幫你計算「迭代（Iteration）」的次數。",
+                code: `# range(5) 會產生 0, 1, 2, 3, 4 的序列\n# 變數 i 會依序取得這些數字\nfor i in range(5):\n    # 縮排 (Indent) 內的程式碼屬於迴圈的一部分\n    print("目前跑到第", i, "圈")`,
+                output: "目前跑到第 0 圈\n目前跑到第 1 圈\n目前跑到第 2 圈\n目前跑到第 3 圈\n目前跑到第 4 圈",
+                tipType: "💡 進階技巧（縮排的意義）",
+                tip: "Python 是靠「縮排（Indentation，通常是 4 個空白鍵）」來區分程式區塊的。如果縮排錯誤，會產生 IndentationError。",
+                practice: "使用 for 迴圈與 range(1, 4)，印出數字 1 到 3。",
+                visual: "stepping_stones"
+            },
+            {
+                id: 10,
+                title: "10. 列表基礎 (List)",
+                concept: "當我們有多筆資料要儲存時，不需要宣告一堆變數。我們可以使用「列表（List）」，將多個資料放在同一個陣列中，並透過「索引（Index）」精準拿出指定位置的資料。",
+                code: `# 建立一個包含三個水果的列表\nfruits = ["蘋果", "香蕉", "橘子"]\n\n# 透過索引取得資料 (注意：索引是從 0 開始算的！)\nprint("第一個水果是：", fruits[0])\nprint("第二個水果是：", fruits[1])`,
+                output: "第一個水果是： 蘋果\n第二個水果是： 香蕉",
+                tipType: "⚠️ 常見錯誤（IndexError）",
+                tip: "初學者常犯的錯誤是「索引超界」。上面範例如果我們去拿 fruits[3]，程式會報錯，因為最大索引只有 2！",
+                practice: "建立一個包含三個數字的列表，並用 print 印出它的最後一個元素。",
+                visual: "array_boxes"
+            },
+            {
+                id: 11,
+                title: "11. 線性搜尋 (Linear Search)",
+                concept: "要在一個列表中尋找特定的目標，最直覺的方法就是「線性搜尋」。我們利用迴圈，從頭到尾把列表裡的項目逐一拿出來與目標比對，就像是在書架上從左到右找一本書。",
+                code: `items = [14, 25, 8, 99, 42]\ntarget = 99\nfound = False\n\n# 逐一檢查列表中的每個元素\nfor item in items:\n    if item == target:\n        found = True\n        break # 找到了就提早離開迴圈\n\nprint("是否有找到目標？", found)`,
+                output: "是否有找到目標？ True",
+                practice: "修改上面的程式碼，如果找到目標，請印出 'Target Found!'。",
+                visual: "linear_search"
+            },
+            {
+                id: 12,
+                title: "12. 列表順序驗證",
+                concept: "我們常需要確認一個列表是否已經「由小到大排好序」。這是一個經典的驗證迴圈：我們需要比較當前項目 list[i] 與下一個項目 list[i+1] 的大小關係。",
+                code: `numbers = [1, 3, 5, 8, 6, 10]\nis_sorted = True\n\n# 迴圈範圍到長度減 1，避免 i+1 發生 IndexError\nfor i in range(len(numbers) - 1):\n    # 如果前一個數字大於後一個數字，代表沒有排好序\n    if numbers[i] > numbers[i+1]:\n        is_sorted = False\n        print("發現未排序的錯誤位置在索引：", i)\n        break\n\nprint("整個列表是否已排序？", is_sorted)`,
+                output: "發現未排序的錯誤位置在索引： 3\n整個列表是否已排序？ False",
+                practice: "給定列表 [2, 4, 6, 8]，想想看上面的程式碼跑完，is_sorted 會是 True 還是 False？",
+                visual: "sort_check"
+            },
+            {
+                id: 13,
+                title: "13. 二元搜尋法 (Binary Search)",
+                concept: "如果列表已經排好序了，我們就不需要慢慢找。二元搜尋法採用「分而治之（Divide and Conquer）」策略，每次都直接切中間一半，判斷目標在左邊還是右邊。這能在龐大的資料中省下驚人的時間！",
+                code: `# 必須是已排序的陣列\nsorted_nums = [10, 20, 30, 40, 50, 60, 70]\ntarget = 60\n\nleft = 0\nright = len(sorted_nums) - 1\n\nwhile left <= right:\n    # 找到中間的索引 (使用 // 取整數)\n    mid = (left + right) // 2 \n    \n    if sorted_nums[mid] == target:\n        print("找到目標了！索引位置：", mid)\n        break\n    elif sorted_nums[mid] < target:\n        # 目標比中間值大，代表在右半邊，移動左邊界\n        left = mid + 1\n    else:\n        # 目標比中間值小，代表在左半邊，移動右邊界\n        right = mid - 1`,
+                output: "找到目標了！索引位置： 5",
+                tipType: "💡 進階技巧（演算法威力）",
+                tip: "假設你有 100 萬筆排好序的資料，線性搜尋最差要找 100 萬次；但二元搜尋法最多只需要切 20 次！這就是演算法的魅力。",
+                practice: "若目標值 target = 10，在第一次迴圈切出中間值 40 之後，right 邊界變數會被更新成多少？",
+                visual: "binary_search"
+            }
+        ];
+
+        // --- State Management ---
+        let currentModuleId = 0;
+        let chartInstance = null;
+
+        // --- DOM Elements ---
+        const navContainer = document.getElementById('nav-container');
+        const contentArea = document.getElementById('content-area');
+        const sidebar = document.getElementById('sidebar');
+        const openSidebarBtn = document.getElementById('openSidebar');
+        const closeSidebarBtn = document.getElementById('closeSidebar');
+
+        // --- Core Functions ---
+
+        // Simple Regex-based Syntax Highlighter to avoid external libraries
+        function highlightSyntax(code) {
+            if(!code) return '';
+            // Escape HTML brackets first
+            let html = code.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            
+            // Comments (#)
+            html = html.replace(/(#.*)/g, '<span class="token-comment">$1</span>');
+            // Strings ("..." or '...')
+            html = html.replace(/("[^"]*")/g, '<span class="token-string">$1</span>');
+            html = html.replace(/('[^']*')/g, '<span class="token-string">$1</span>');
+            // Keywords
+            const keywords = ['print', 'input', 'if', 'else', 'elif', 'while', 'for', 'in', 'break', 'and', 'or', 'not', 'len', 'int'];
+            const regexK = new RegExp('\\b(' + keywords.join('|') + ')\\b', 'g');
+            // Make sure we don't highlight keywords inside strings/comments (Simplified approach: works mostly for standard examples)
+            html = html.replace(regexK, '<span class="token-keyword">$1</span>');
+            // Booleans
+            html = html.replace(/\b(True|False)\b/g, '<span class="token-boolean">$1</span>');
+            // Numbers
+            html = html.replace(/\b(\d+(\.\d+)?)\b/g, '<span class="token-number">$1</span>');
+            
+            return html;
+        }
+
+        // Render Navigation Sidebar
+        function renderNavigation() {
+            navContainer.innerHTML = '';
+            courseData.forEach(module => {
+                const btn = document.createElement('button');
+                btn.className = `w-full text-left px-4 py-3 rounded-lg mb-1 transition-colors text-sm font-medium ${currentModuleId === module.id ? 'bg-stone-800 text-white' : 'text-stone-400 hover:bg-stone-800 hover:text-stone-200'}`;
+                btn.innerText = module.title;
+                btn.onclick = () => {
+                    currentModuleId = module.id;
+                    renderModule();
+                    renderNavigation();
+                    if(window.innerWidth < 768) {
+                        sidebar.classList.add('-translate-x-full'); // Close on mobile click
+                    }
+                };
+                navContainer.appendChild(btn);
+            });
+        }
+
+        // HTML/CSS Visual Generators (No SVG/Mermaid)
+        function getVisualizerHTML(visualKey) {
+            switch(visualKey) {
+                case 'array_boxes':
+                    return `
+                        <div class="flex flex-col items-center mt-4 p-4 bg-stone-100 rounded-lg">
+                            <p class="text-sm text-stone-500 mb-2 font-bold">List: fruits = ["蘋果", "香蕉", "橘子"]</p>
+                            <div class="flex gap-2">
+                                <div class="flex flex-col items-center"><div class="text-xs text-stone-400 mb-1">Index 0</div><div class="w-16 h-16 bg-white border-2 border-stone-300 rounded shadow flex items-center justify-center font-bold text-stone-700">蘋果</div></div>
+                                <div class="flex flex-col items-center"><div class="text-xs text-stone-400 mb-1">Index 1</div><div class="w-16 h-16 bg-white border-2 border-stone-300 rounded shadow flex items-center justify-center font-bold text-stone-700">香蕉</div></div>
+                                <div class="flex flex-col items-center"><div class="text-xs text-stone-400 mb-1">Index 2</div><div class="w-16 h-16 bg-white border-2 border-stone-300 rounded shadow flex items-center justify-center font-bold text-stone-700">橘子</div></div>
+                            </div>
+                        </div>`;
+                case 'swap_cups':
+                    return `
+                        <div class="flex flex-col items-center mt-4 p-4 bg-stone-100 rounded-lg">
+                            <p class="text-sm text-stone-500 mb-4 font-bold">變數交換步驟 (Temp = a, a = b, b = Temp)</p>
+                            <div class="flex gap-6 items-end">
+                                <div class="flex flex-col items-center"><div class="w-12 h-16 border-b-2 border-l-2 border-r-2 border-stone-400 rounded-b flex items-end justify-center pb-2 bg-red-100 text-red-700 font-bold">香蕉</div><div class="mt-2 text-sm font-bold">變數 a</div></div>
+                                <div class="flex flex-col items-center"><div class="text-2xl text-stone-400 mb-4">⇄</div></div>
+                                <div class="flex flex-col items-center"><div class="w-12 h-16 border-b-2 border-l-2 border-r-2 border-stone-400 rounded-b flex items-end justify-center pb-2 bg-yellow-100 text-yellow-700 font-bold">蘋果</div><div class="mt-2 text-sm font-bold">變數 b</div></div>
+                                <div class="w-px h-16 bg-stone-300 mx-2"></div>
+                                <div class="flex flex-col items-center"><div class="w-12 h-16 border-b-2 border-l-2 border-r-2 border-stone-400 rounded-b border-dashed flex items-end justify-center pb-2">空</div><div class="mt-2 text-sm text-stone-500">Temp</div></div>
+                            </div>
+                        </div>`;
+                case 'logic_gates':
+                     return `
+                        <div class="flex flex-col items-center mt-4 p-4 bg-stone-100 rounded-lg w-full max-w-md mx-auto">
+                            <div class="flex justify-between w-full mb-2 border-b border-stone-300 pb-2">
+                                <div class="text-center w-1/3 font-bold text-sm">A</div>
+                                <div class="text-center w-1/3 font-bold text-sm">B</div>
+                                <div class="text-center w-1/3 font-bold text-sm text-blue-600">A and B</div>
+                            </div>
+                            <div class="flex justify-between w-full mb-1"><div class="text-center w-1/3 text-sm text-green-600">True</div><div class="text-center w-1/3 text-sm text-green-600">True</div><div class="text-center w-1/3 text-sm font-bold text-green-600 bg-green-100 rounded">True</div></div>
+                            <div class="flex justify-between w-full mb-1"><div class="text-center w-1/3 text-sm text-green-600">True</div><div class="text-center w-1/3 text-sm text-red-500">False</div><div class="text-center w-1/3 text-sm font-bold text-red-500 bg-red-100 rounded">False</div></div>
+                        </div>`;
+                case 'binary_search':
+                    return `
+                        <div class="flex flex-col mt-4 p-4 bg-stone-100 rounded-lg overflow-x-auto">
+                            <p class="text-sm text-stone-500 mb-2 font-bold">找目標 60 (直接切中間)</p>
+                            <div class="flex gap-1 opacity-50"><div class="w-8 h-8 bg-stone-300 flex items-center justify-center text-xs">10</div><div class="w-8 h-8 bg-stone-300 flex items-center justify-center text-xs">20</div><div class="w-8 h-8 bg-stone-300 flex items-center justify-center text-xs">30</div><div class="w-8 h-8 bg-blue-300 flex items-center justify-center text-xs font-bold ring-2 ring-blue-500">40</div><div class="w-8 h-8 bg-stone-300 flex items-center justify-center text-xs">50</div><div class="w-8 h-8 bg-stone-300 flex items-center justify-center text-xs">60</div><div class="w-8 h-8 bg-stone-300 flex items-center justify-center text-xs">70</div></div>
+                            <p class="text-xs text-stone-500 mt-1 mb-2">中間是 40，60 比 40 大，所以左半邊(包含40)直接拋棄！</p>
+                            <div class="flex gap-1"><div class="w-8 h-8 bg-transparent flex items-center justify-center text-xs"></div><div class="w-8 h-8 bg-transparent flex items-center justify-center text-xs"></div><div class="w-8 h-8 bg-transparent flex items-center justify-center text-xs"></div><div class="w-8 h-8 bg-transparent flex items-center justify-center text-xs"></div><div class="w-8 h-8 bg-stone-300 flex items-center justify-center text-xs">50</div><div class="w-8 h-8 bg-green-300 flex items-center justify-center text-xs font-bold ring-2 ring-green-500">60</div><div class="w-8 h-8 bg-stone-300 flex items-center justify-center text-xs">70</div></div>
+                            <p class="text-xs text-stone-500 mt-1">剩下的找中間，直接命中 60！</p>
+                        </div>`;
+                default:
+                    return ''; // No visual for this module
+            }
+        }
+
+        // Render Current Module Content
+        function renderModule() {
+            const module = courseData.find(m => m.id === currentModuleId);
+            if(!module) return;
+
+            // Destroy previous chart if it exists
+            if(chartInstance) {
+                chartInstance.destroy();
+                chartInstance = null;
+            }
+
+            // Introduction Context Paragraph (Required by prompt)
+            let introContext = `<p class="text-stone-600 mb-6 leading-relaxed">
+                <span class="font-bold text-stone-800">本節目標：</span> 
+                這部分內容來自源文件的 <span class="bg-stone-200 px-1 rounded text-sm text-stone-700">${module.title}</span> 章節。
+                在這裡，我們將透過互動式編輯器與圖解，幫助你理解該語法的實際運作邏輯，為後續更複雜的程式架構打下基礎。
+            </p>`;
+
+            if (module.isOverview) {
+                // Render Landing Page / Dashboard Overview
+                contentArea.innerHTML = `
+                    <div class="max-w-4xl mx-auto fade-in">
+                        <h2 class="text-3xl font-bold text-stone-800 mb-2">${module.title}</h2>
+                        <div class="bg-white p-6 rounded-xl shadow-sm border border-stone-200 mb-8 mt-6">
+                            <h3 class="text-xl font-bold text-stone-800 mb-4">為什麼我們要學程式語言？</h3>
+                            <p class="text-stone-600 leading-relaxed mb-4">${module.concept}</p>
+                            
+                            <div class="bg-stone-50 p-4 rounded-lg border border-stone-200 mt-6">
+                                <h4 class="font-bold text-stone-700 mb-2 flex items-center gap-2">📊 演算法效能比較：線性搜尋 vs 二元搜尋</h4>
+                                <p class="text-sm text-stone-500 mb-4">當資料量越來越大時，好的演算法（二元搜尋）尋找資料的次數會遠低於土法煉鋼的線性搜尋。這也是為何我們要循序漸進學習各種語法與邏輯。</p>
+                                
+                                <!-- CRITICAL: Chart Container styled correctly -->
+                                <div class="chart-container">
+                                    <canvas id="complexityChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="bg-blue-50 p-6 rounded-xl border border-blue-100">
+                                <h4 class="font-bold text-blue-800 mb-2">💡 如何使用本教學？</h4>
+                                <ul class="list-disc pl-5 text-sm text-blue-700 space-y-2">
+                                    <li>使用左側選單切換不同的學習單元。</li>
+                                    <li>閱讀概念後，點擊「▶ 執行程式碼」查看結果。</li>
+                                    <li>查看視覺化圖解以加深記憶。</li>
+                                    <li>利用隨堂練習測試自己的理解度。</li>
+                                </ul>
+                            </div>
+                            <div class="bg-stone-800 p-6 rounded-xl border border-stone-700 text-stone-300 flex items-center justify-center flex-col text-center hover:bg-stone-700 transition cursor-pointer" onclick="document.querySelector('#nav-container button:nth-child(2)').click()">
+                                <span class="text-4xl mb-2">🚀</span>
+                                <span class="font-bold text-white">點此開始第一章：print()</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                // Initialize Chart.js for the Overview
+                setTimeout(initComplexityChart, 100);
+                return;
+            }
+
+            // Normal Module Render
+            let visualHtml = getVisualizerHTML(module.visual);
+
+            contentArea.innerHTML = `
+                <div class="max-w-4xl mx-auto fade-in">
+                    <h2 class="text-2xl md:text-3xl font-bold text-stone-800 mb-4">${module.title}</h2>
+                    ${introContext}
+                    
+                    <!-- Concept Block -->
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-stone-200 mb-6">
+                        <h3 class="text-lg font-bold text-stone-800 mb-2 flex items-center gap-2">📌 觀念導引</h3>
+                        <p class="text-stone-600 leading-relaxed">${module.concept}</p>
+                        ${visualHtml}
+                    </div>
+
+                    <!-- Code IDE Simulator Block -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                        <div class="bg-[#1c1917] rounded-xl shadow-lg border border-stone-800 flex flex-col overflow-hidden">
+                            <div class="bg-[#292524] px-4 py-2 flex justify-between items-center border-b border-stone-700">
+                                <span class="text-xs text-stone-400 font-code">main.py</span>
+                                <button onclick="runCode()" class="bg-green-600 hover:bg-green-500 text-white text-xs px-3 py-1 rounded transition flex items-center gap-1 font-bold">
+                                    ▶ 執行程式碼
+                                </button>
+                            </div>
+                            <div class="p-4 overflow-x-auto custom-scrollbar flex-1">
+                                <pre class="text-sm font-code text-stone-300 leading-relaxed m-0 whitespace-pre-wrap"><code>${highlightSyntax(module.code)}</code></pre>
+                            </div>
+                        </div>
+
+                        <!-- Output Console -->
+                        <div class="bg-[#0c0a09] rounded-xl shadow-lg border border-stone-800 flex flex-col overflow-hidden relative group">
+                            <div class="bg-[#1c1917] px-4 py-2 flex items-center border-b border-stone-800">
+                                <span class="text-xs text-stone-500 font-code">Console Output</span>
+                            </div>
+                            <div class="p-4 flex-1 relative">
+                                <!-- Waiting state -->
+                                <div id="console-waiting" class="absolute inset-0 flex items-center justify-center flex-col text-stone-600">
+                                    <span class="text-2xl mb-2">⌨️</span>
+                                    <span class="text-sm">點擊左側「執行程式碼」查看結果</span>
+                                </div>
+                                <!-- Result state (Hidden initially) -->
+                                <pre id="console-output" class="text-sm font-code text-green-400 whitespace-pre-wrap hidden m-0"></pre>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tips / Warnings -->
+                    ${module.tip ? `
+                        <div class="${module.tipType.includes('錯誤') ? 'bg-red-50 border-red-200 text-red-800' : 'bg-yellow-50 border-yellow-200 text-yellow-800'} border p-4 rounded-lg mb-6 text-sm flex gap-3 items-start">
+                            <div class="font-bold flex-shrink-0">${module.tipType}</div>
+                            <div>${module.tip}</div>
+                        </div>
+                    ` : ''}
+
+                    <!-- Practice Quiz -->
+                    ${module.practice ? `
+                        <div class="bg-white border-2 border-dashed border-stone-300 p-6 rounded-xl mb-10">
+                            <h3 class="text-md font-bold text-stone-700 mb-2 flex items-center gap-2">📝 隨堂練習題</h3>
+                            <p class="text-stone-600 text-sm mb-4">${module.practice}</p>
+                            <button onclick="toggleAnswer(this)" class="text-sm font-bold text-blue-600 hover:text-blue-800 transition">👉 點此思考後看提示</button>
+                            <div class="answer-box hidden mt-3 p-3 bg-blue-50 text-blue-800 text-sm rounded border border-blue-100">
+                                試著在電腦上開啟 Python 編輯器，把剛剛學到的語法組合看看！程式碼就像拼圖，動手寫是學會的唯一途徑喔。
+                            </div>
+                        </div>
+                    ` : ''}
+                    
+                    <!-- Bottom Navigation -->
+                    <div class="flex justify-between items-center border-t border-stone-200 pt-6 mt-4 pb-12">
+                        ${currentModuleId > 0 ? `<button onclick="goToModule(${currentModuleId - 1})" class="text-stone-500 hover:text-stone-800 font-bold text-sm transition">← 上一單元</button>` : '<div></div>'}
+                        ${currentModuleId < courseData.length - 1 ? `<button onclick="goToModule(${currentModuleId + 1})" class="bg-stone-800 hover:bg-stone-700 text-white px-4 py-2 rounded-lg font-bold text-sm transition shadow">下一單元 →</button>` : '<div></div>'}
+                    </div>
+                </div>
+            `;
+        }
+
+        // --- Interaction Handlers ---
+
+        function runCode() {
+            const module = courseData.find(m => m.id === currentModuleId);
+            const waitingDiv = document.getElementById('console-waiting');
+            const outputPre = document.getElementById('console-output');
+            
+            if(waitingDiv && outputPre && module) {
+                waitingDiv.classList.add('hidden');
+                outputPre.classList.remove('hidden');
+                outputPre.classList.add('fade-in');
+                outputPre.innerText = module.output; // Display pre-defined output
+            }
+        }
+
+        function toggleAnswer(btn) {
+            const answerBox = btn.nextElementSibling;
+            if(answerBox.classList.contains('hidden')) {
+                answerBox.classList.remove('hidden');
+                btn.innerText = "👇 隱藏提示";
+            } else {
+                answerBox.classList.add('hidden');
+                btn.innerText = "👉 點此思考後看提示";
+            }
+        }
+
+        function goToModule(id) {
+            currentModuleId = id;
+            renderModule();
+            renderNavigation();
+            contentArea.scrollTo(0,0);
+        }
+
+        // --- Chart.js Visualization (Dashboard Overview) ---
+        function initComplexityChart() {
+            const ctx = document.getElementById('complexityChart');
+            if(!ctx) return;
+
+            // Generate mock data for O(N) vs O(log N)
+            const labels = [10, 50, 100, 200, 500, 1000];
+            const linearData = labels.map(n => n); // worst case O(N)
+            const binaryData = labels.map(n => Math.ceil(Math.log2(n))); // worst case O(log N)
+
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: '線性搜尋 (逐一尋找) 步驟數',
+                            data: linearData,
+                            borderColor: '#ef4444', // Red
+                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            borderWidth: 2,
+                            tension: 0.1,
+                            fill: true
+                        },
+                        {
+                            label: '二元搜尋 (對半切) 步驟數',
+                            data: binaryData,
+                            borderColor: '#22c55e', // Green
+                            backgroundColor: 'rgba(34, 197, 94, 0.2)',
+                            borderWidth: 3,
+                            tension: 0.1,
+                            fill: true
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false, // CRITICAL for filling parent container properly
+                    plugins: {
+                        legend: { position: 'top', labels: { font: { family: "'Noto Sans TC', sans-serif" } } },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            titleFont: { family: "'Noto Sans TC', sans-serif" },
+                            bodyFont: { family: "'Noto Sans TC', sans-serif" }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: { display: true, text: '資料總筆數 (N)', font: { family: "'Noto Sans TC', sans-serif" } }
+                        },
+                        y: {
+                            title: { display: true, text: '最差情況尋找次數', font: { family: "'Noto Sans TC', sans-serif" } },
+                            type: 'logarithmic' // Log scale makes the massive difference easier to see visually
+                        }
+                    },
+                    interaction: {
+                        mode: 'nearest',
+                        axis: 'x',
+                        intersect: false
+                    }
+                }
+            });
+        }
+
+        // --- Event Listeners for Mobile Sidebar ---
+        openSidebarBtn.addEventListener('click', () => {
+            sidebar.classList.remove('-translate-x-full');
+        });
+        closeSidebarBtn.addEventListener('click', () => {
+            sidebar.classList.add('-translate-x-full');
+        });
+
+        // Initialize App
+        document.addEventListener('DOMContentLoaded', () => {
+            renderNavigation();
+            renderModule();
+        });
+
+    </script>
+</body>
+</html>
