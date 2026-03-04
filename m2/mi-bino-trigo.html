@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DSE M2 Revision Portal</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- MathJax Configuration and Loader -->
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']],
+      },
+      startup: {
+        typeset: false // We will trigger typesetting manually when content changes
+      }
+    };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
+
+  <style>
+    /* Prevent layout shifts while math is rendering */
+    .mathjax-content { min-height: 200px; }
+  </style>
+</head>
+<body class="min-h-screen bg-slate-50 flex flex-col font-sans">
+
+  <!-- Header -->
+  <header class="bg-indigo-600 text-white shadow-md sticky top-0 z-20">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+      <div class="flex items-center gap-3">
+        <div class="bg-white p-2 rounded-lg text-indigo-600">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+        </div>
+        <h1 class="text-xl font-bold tracking-tight">DSE M2 Revision</h1>
+      </div>
+      
+      <!-- Mobile menu button -->
+      <button id="mobile-menu-btn" class="md:hidden p-2 rounded-md hover:bg-indigo-700 transition-colors">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="flex-1 max-w-7xl mx-auto w-full flex flex-col md:flex-row overflow-hidden">
+    
+    <!-- Sidebar Navigation -->
+    <aside id="sidebar" class="hidden md:block w-full md:w-64 bg-white border-r border-slate-200 md:h-[calc(100vh-76px)] overflow-y-auto flex-shrink-0 z-10">
+      <div class="p-4">
+        <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 px-3">Topics</h2>
+        <nav id="nav-links" class="space-y-1">
+          <!-- Navigation links will be injected here by JS -->
+        </nav>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 p-4 md:p-8 overflow-y-auto bg-slate-50">
+      <div class="max-w-3xl mx-auto">
+        
+        <!-- Topic Content Card -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-8">
+          <div class="border-b border-slate-100 bg-slate-50/50 px-6 py-4">
+            <h2 id="topic-title" class="text-2xl font-bold text-slate-800 flex items-center gap-2">
+              <!-- Title and icon will be injected here -->
+            </h2>
+          </div>
+          <div id="topic-content" class="p-6 text-slate-800 mathjax-content">
+            <!-- Content will be injected here -->
+          </div>
+        </div>
+
+        <!-- Quiz Section -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <div class="border-b border-slate-100 bg-indigo-50/50 px-6 py-4">
+            <h3 class="text-lg font-bold text-indigo-900 flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-indigo-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>
+              Knowledge Check
+            </h3>
+          </div>
+          <div class="p-6">
+            <p id="quiz-question" class="font-medium text-slate-800 mb-4"></p>
+            
+            <div id="quiz-options" class="space-y-3 mb-6">
+              <!-- Options injected here -->
+            </div>
+
+            <div id="quiz-actions">
+              <button id="quiz-submit-btn" disabled class="px-6 py-2.5 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                Check Answer
+              </button>
+            </div>
+            
+            <div id="quiz-feedback" class="hidden mt-4 p-4 rounded-lg border">
+              <p id="quiz-feedback-title" class="font-bold mb-1"></p>
+              <p id="quiz-feedback-text" class="text-sm"></p>
+            </div>
+          </div>
+        </div>
+        
+        <div class="h-12"></div> <!-- Bottom padding -->
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // --- Icons (SVG Strings) ---
+    const icons = {
+      mi: `<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><path d="M9 17c2 0 2.8-1 2.8-2.8V10c0-2 1-3.3 3.2-3"/><path d="M9 11.2h5.7"/></svg>`,
+      binomial: `<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>`,
+      trig: `<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13.73 4a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/></svg>`,
+      lightbulb: `<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1.3.5 2.6 1.5 3.5.8.8 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg>`,
+      chevron: `<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>`,
+      checkCircle: `<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-green-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>`,
+      checkCircleIndigo: `<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-indigo-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>`,
+      circleRed: `<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-red-400 fill-red-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>`,
+      circleGray: `<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-slate-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>`
+    };
+
+    // --- Data ---
+    const revisionData = {
+      mi: {
+        id: 'mi',
+        title: 'Mathematical Induction',
+        icon: icons.mi,
+        content: `
+          <div class="space-y-4">
+            <p class="text-gray-700 leading-relaxed">For DSE M2, MI questions usually follow a strict marking scheme. You must hit every structural beat to get full marks. They typically test summation, divisibility, or matrix powers.</p>
+            
+            <h3 class="text-xl font-bold text-slate-800 mt-6 border-b pb-2">The Standard 4-Step Template</h3>
+            <ol class="list-decimal pl-5 space-y-4 text-gray-700">
+              <li>
+                <strong>Define the Proposition:</strong><br/>
+                Let $P(n)$ be the proposition that "[write the equation/statement here]".
+              </li>
+              <li>
+                <strong>Base Case:</strong><br/>
+                For $n = 1$:<br/>
+                $\\text{LHS} = ...$<br/>
+                $\\text{RHS} = ...$<br/>
+                Since $\\text{LHS} = \\text{RHS}$, $P(1)$ is true. <em>(Don't skip stating this!)</em>
+              </li>
+              <li>
+                <strong>Inductive Hypothesis:</strong><br/>
+                Assume $P(k)$ is true for some positive integer $k$.<br/>
+                <em>(i.e., write out the equation substituting $k$ for $n$)</em>.
+              </li>
+              <li>
+                <strong>Inductive Step (The core proof):</strong><br/>
+                For $n = k+1$:<br/>
+                $\\text{LHS} = (\\text{terms up to } k) + (\\text{the } (k+1)\\text{-th term})$<br/>
+                Substitute the assumption from Step 3 into the first part. Algebraically manipulate the expression to show it equals the RHS when $n = k+1$.<br/>
+                Therefore, $P(k+1)$ is true.
+              </li>
+              <li>
+                <strong>Conclusion:</strong><br/>
+                By the principle of mathematical induction, $P(n)$ is true for all positive integers $n$.
+              </li>
+            </ol>
+
+            <div class="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-md mt-6">
+              <div class="flex items-center gap-2 text-blue-800 font-semibold mb-1">
+                ${icons.lightbulb}
+                <span>DSE Tip</span>
+              </div>
+              <p class="text-blue-900 text-sm">If you get stuck on the algebra in Step 4, explicitly write out what your target RHS for $n=k+1$ is on a piece of scratch paper so you know exactly what you are trying to factor or expand towards.</p>
+            </div>
+          </div>
+        `,
+        quiz: {
+          question: "In the inductive step (n=k+1) for a summation proof, what is the most common first algebraic action?",
+          options: [
+            "Divide the entire equation by k.",
+            "Split the sum into the sum of the first k terms plus the (k+1)-th term.",
+            "Substitute n=1 to check the base case again.",
+            "Take the derivative of both sides."
+          ],
+          correctAnswer: 1,
+          explanation: "You almost always start by expanding $\\sum_{r=1}^{k+1} f(r)$ into $(\\sum_{r=1}^{k} f(r)) + f(k+1)$ so you can substitute your assumption $P(k)$ into the first part."
+        }
+      },
+      binomial: {
+        id: 'binomial',
+        title: 'Binomial Theorem',
+        icon: icons.binomial,
+        content: `
+          <div class="space-y-4">
+            <p class="text-gray-700 leading-relaxed">This topic is all about knowing the general term and understanding how to manipulate indices to find specific coefficients.</p>
+            
+            <div class="bg-slate-50 p-6 rounded-lg border border-slate-200 text-center overflow-x-auto">
+              <h4 class="font-semibold text-slate-700 mb-4">The Core Formula</h4>
+              <p class="text-lg">For any positive integer $n$:</p>
+              <div class="my-4 text-xl">$(a+b)^n = \\sum_{r=0}^n C_r^n a^{n-r} b^r$</div>
+            </div>
+
+            <h3 class="text-xl font-bold text-slate-800 mt-6 border-b pb-2">The General Term (Crucial for Exams)</h3>
+            <p class="text-gray-700">The $(r+1)$-th term is given by:</p>
+            <div class="text-center text-xl my-4">$T_{r+1} = C_r^n a^{n-r} b^r$</div>
+            <p class="text-sm text-gray-500 italic">Note: The 4th term is $T_4$, which means $r=3$. Always remember the off-by-one rule!</p>
+
+            <h3 class="text-xl font-bold text-slate-800 mt-6 border-b pb-2">Key Properties of Binomial Coefficients</h3>
+            <ul class="list-disc pl-5 space-y-2 text-gray-700">
+              <li><strong>Symmetry:</strong> $C_r^n = C_{n-r}^n$</li>
+              <li><strong>Pascal's Identity:</strong> $C_r^n + C_{r+1}^n = C_{r+1}^{n+1}$</li>
+            </ul>
+
+            <div class="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-md mt-6">
+              <div class="flex items-center gap-2 text-blue-800 font-semibold mb-1">
+                ${icons.lightbulb}
+                <span>Common DSE Question Types</span>
+              </div>
+              <ul class="list-disc pl-5 mt-2 space-y-2 text-sm text-blue-900">
+                <li><strong>Finding a specific coefficient:</strong> You'll be given an expansion like $(2x - \\frac{1}{x^2})^8$ and asked for the constant term. Use the general term, group the $x$'s together, and set the power of $x$ to $0$ to solve for $r$.</li>
+                <li><strong>Expansion using a previous part:</strong> You might expand $(1+x)^n$ and then be asked to evaluate something by substituting a specific value for $x$ (e.g., $x=0.1$ or $x=2$).</li>
+              </ul>
+            </div>
+          </div>
+        `,
+        quiz: {
+          question: "If you want to find the coefficient of the $x^3$ term, and your general term has an $x$ component of $x^{12-3r}$, what should you do?",
+          options: [
+            "Set r = 3",
+            "Set 12 - 3r = 3 and solve for r",
+            "Set 12 - 3r = 0 and solve for r",
+            "Expand the entire polynomial"
+          ],
+          correctAnswer: 1,
+          explanation: "To find a specific power of x, you equate the exponent of x in your simplified general term to the target power. So, $12 - 3r = 3 \\Rightarrow 3r = 9 \\Rightarrow r = 3$."
+        }
+      },
+      trig: {
+        id: 'trig',
+        title: 'Trigonometry',
+        icon: icons.trig,
+        content: `
+          <div class="space-y-4">
+            <p class="text-gray-700 leading-relaxed">M2 Trig is heavily formula-based. You need to memorize these so you can spot them backward and forward, especially for limits and integration.</p>
+            
+            <h3 class="text-xl font-bold text-slate-800 mt-6 border-b pb-2">Compound Angle Formulas</h3>
+            <ul class="list-disc pl-5 space-y-2 text-gray-700">
+              <li>$\\sin(A \\pm B) = \\sin A \\cos B \\pm \\cos A \\sin B$</li>
+              <li>$\\cos(A \\pm B) = \\cos A \\cos B \\mp \\sin A \\sin B$ <em>(Note the sign flip!)</em></li>
+              <li>$\\tan(A \\pm B) = \\frac{\\tan A \\pm \\tan B}{1 \\mp \\tan A \\tan B}$</li>
+            </ul>
+
+            <h3 class="text-xl font-bold text-slate-800 mt-6 border-b pb-2">Double Angle Formulas</h3>
+            <ul class="list-disc pl-5 space-y-2 text-gray-700">
+              <li>$\\sin 2A = 2 \\sin A \\cos A$</li>
+              <li>
+                $\\cos 2A = \\cos^2 A - \\sin^2 A$<br/>
+                $\\quad = 2\\cos^2 A - 1$ <em>(Useful to isolate $\\cos^2 A$)</em><br/>
+                $\\quad = 1 - 2\\sin^2 A$ <em>(Useful to isolate $\\sin^2 A$)</em>
+              </li>
+              <li>$\\tan 2A = \\frac{2\\tan A}{1 - \\tan^2 A}$</li>
+            </ul>
+
+            <h3 class="text-xl font-bold text-slate-800 mt-6 border-b pb-2">Sum-to-Product Formulas</h3>
+            <p class="text-sm text-gray-500 mb-2">Very useful for M2 Limits and First Principles derivatives.</p>
+            <ul class="list-disc pl-5 space-y-2 text-gray-700">
+              <li>$\\sin A + \\sin B = 2 \\sin(\\frac{A+B}{2}) \\cos(\\frac{A-B}{2})$</li>
+              <li>$\\sin A - \\sin B = 2 \\cos(\\frac{A+B}{2}) \\sin(\\frac{A-B}{2})$</li>
+              <li>$\\cos A + \\cos B = 2 \\cos(\\frac{A+B}{2}) \\cos(\\frac{A-B}{2})$</li>
+              <li>$\\cos A - \\cos B = -2 \\sin(\\frac{A+B}{2}) \\sin(\\frac{A-B}{2})$ <em>(Don't forget the negative sign here!)</em></li>
+            </ul>
+
+            <div class="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-md mt-6">
+              <div class="flex items-center gap-2 text-blue-800 font-semibold mb-1">
+                ${icons.lightbulb}
+                <span>DSE Tip</span>
+              </div>
+              <p class="text-blue-900 text-sm">In M2, you will frequently use the identity $\\lim_{x \\to 0} \\frac{\\sin x}{x} = 1$. When proving derivatives from first principles (like the derivative of $\\sin x$), you <em>must</em> use the sum-to-product formulas to create a $\\frac{\\sin(\\Delta x)}{\\Delta x}$ term.</p>
+            </div>
+          </div>
+        `,
+        quiz: {
+          question: "Which of the following is equivalent to $\\cos^2 \\theta$?",
+          options: [
+            "$\\frac{1 - \\cos 2\\theta}{2}$",
+            "$\\frac{1 + \\cos 2\\theta}{2}$",
+            "$1 + \\sin^2 \\theta$",
+            "$\\sin 2\\theta - 1$"
+          ],
+          correctAnswer: 1,
+          explanation: "From the double angle formula $\\cos 2\\theta = 2\\cos^2 \\theta - 1$, if we rearrange it to solve for $\\cos^2 \\theta$, we get $2\\cos^2 \\theta = 1 + \\cos 2\\theta$, which means $\\cos^2 \\theta = \\frac{1 + \\cos 2\\theta}{2}$. This is incredibly useful for integrating $\\cos^2 \\theta$!"
+        }
+      }
+    };
+
+    // --- Application State ---
+    let activeTab = 'mi';
+    let quizState = { selected: null, submitted: false };
+    let isMobileMenuOpen = false;
+
+    // --- DOM Elements ---
+    const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+    const sidebar = document.getElementById('sidebar');
+    const navLinksContainer = document.getElementById('nav-links');
+    const topicTitle = document.getElementById('topic-title');
+    const topicContent = document.getElementById('topic-content');
+    const quizQuestion = document.getElementById('quiz-question');
+    const quizOptionsContainer = document.getElementById('quiz-options');
+    const quizSubmitBtn = document.getElementById('quiz-submit-btn');
+    const quizFeedback = document.getElementById('quiz-feedback');
+    const quizFeedbackTitle = document.getElementById('quiz-feedback-title');
+    const quizFeedbackText = document.getElementById('quiz-feedback-text');
+
+    // --- Core Functions ---
+
+    function reTypesetMath() {
+      if (window.MathJax && window.MathJax.typesetPromise) {
+        window.MathJax.typesetPromise().catch((err) => console.log('MathJax err:', err));
+      }
+    }
+
+    function renderSidebar() {
+      navLinksContainer.innerHTML = '';
+      Object.values(revisionData).forEach(topic => {
+        const isActive = activeTab === topic.id;
+        
+        const btn = document.createElement('button');
+        btn.className = `w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left transition-colors ${
+          isActive 
+            ? 'bg-indigo-50 text-indigo-700 font-semibold' 
+            : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+        }`;
+        
+        btn.innerHTML = `
+          <div class="${isActive ? 'text-indigo-600' : 'text-slate-400'}">
+            ${topic.icon}
+          </div>
+          <span class="flex-1">${topic.title}</span>
+          ${isActive ? `<div class="text-indigo-400">${icons.chevron}</div>` : ''}
+        `;
+        
+        btn.onclick = () => {
+          activeTab = topic.id;
+          quizState = { selected: null, submitted: false };
+          if(window.innerWidth < 768) {
+             isMobileMenuOpen = false;
+             updateMobileMenu();
+          }
+          renderApp();
+        };
+        
+        navLinksContainer.appendChild(btn);
+      });
+    }
+
+    function renderContent() {
+      const data = revisionData[activeTab];
+      topicTitle.innerHTML = `<span class="text-indigo-500">${data.icon}</span>${data.title}`;
+      topicContent.innerHTML = data.content;
+    }
+
+    function renderQuiz() {
+      const data = revisionData[activeTab];
+      quizQuestion.innerHTML = data.quiz.question;
+      
+      quizOptionsContainer.innerHTML = '';
+      
+      data.quiz.options.forEach((option, index) => {
+        const isSelected = quizState.selected === index;
+        const isCorrect = index === data.quiz.correctAnswer;
+        const showCorrectness = quizState.submitted;
+        
+        let btnClass = "w-full text-left px-4 py-3 rounded-lg border flex items-start gap-3 transition-colors ";
+        let iconHtml = icons.circleGray;
+        
+        if (showCorrectness) {
+          if (isCorrect) {
+            btnClass += "bg-green-50 border-green-500 text-green-800";
+            iconHtml = icons.checkCircle;
+          } else if (isSelected && !isCorrect) {
+            btnClass += "bg-red-50 border-red-300 text-red-800";
+            iconHtml = icons.circleRed;
+          } else {
+            btnClass += "bg-white border-slate-200 text-slate-500 opacity-60";
+          }
+        } else {
+          btnClass += isSelected 
+            ? "bg-indigo-50 border-indigo-500 text-indigo-800" 
+            : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300";
+          
+          if (isSelected) {
+            iconHtml = icons.checkCircleIndigo;
+          }
+        }
+
+        const btn = document.createElement('button');
+        btn.className = btnClass;
+        btn.disabled = quizState.submitted;
+        
+        btn.innerHTML = `
+          <div class="mt-0.5 flex-shrink-0">
+            ${iconHtml}
+          </div>
+          <span>${option}</span>
+        `;
+        
+        btn.onclick = () => {
+          if (!quizState.submitted) {
+            quizState.selected = index;
+            renderQuiz();
+          }
+        };
+        
+        quizOptionsContainer.appendChild(btn);
+      });
+
+      if (!quizState.submitted) {
+        quizFeedback.classList.add('hidden');
+        quizSubmitBtn.style.display = 'block';
+        quizSubmitBtn.disabled = quizState.selected === null;
+      } else {
+        quizSubmitBtn.style.display = 'none';
+        quizFeedback.classList.remove('hidden');
+        
+        const isCorrect = quizState.selected === data.quiz.correctAnswer;
+        quizFeedback.className = `mt-4 p-4 rounded-lg border ${isCorrect ? 'bg-green-50 border-green-200 text-green-800' : 'bg-amber-50 border-amber-200 text-amber-800'}`;
+        quizFeedbackTitle.textContent = isCorrect ? 'Correct!' : 'Not quite.';
+        quizFeedbackText.innerHTML = data.quiz.explanation;
+      }
+    }
+
+    function updateMobileMenu() {
+      if (isMobileMenuOpen) {
+        sidebar.classList.remove('hidden');
+      } else {
+        sidebar.classList.add('hidden');
+      }
+    }
+
+    function renderApp() {
+      renderSidebar();
+      renderContent();
+      renderQuiz();
+      
+      // Delay typeset slightly to ensure DOM is fully updated
+      setTimeout(reTypesetMath, 50);
+    }
+
+    // --- Event Listeners ---
+    mobileMenuBtn.addEventListener('click', () => {
+      isMobileMenuOpen = !isMobileMenuOpen;
+      updateMobileMenu();
+    });
+
+    quizSubmitBtn.addEventListener('click', () => {
+      if (quizState.selected !== null) {
+        quizState.submitted = true;
+        renderQuiz();
+        setTimeout(reTypesetMath, 50); // Re-render for explanation math
+      }
+    });
+
+    // --- Initialization ---
+    document.addEventListener('DOMContentLoaded', () => {
+      renderApp();
+    });
+
+  </script>
+</body>
+</html>
