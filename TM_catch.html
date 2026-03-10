@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Sky Catcher (Left/Right)</title>
+    <title>AI Sky Catcher v2.1 (Case Insensitive)</title>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
         body {
             font-family: 'Roboto', sans-serif;
-            background-color: #202124; /* 深色背景更像太空 */
+            background-color: #202124;
             color: white;
             margin: 0;
             overflow: hidden;
@@ -22,6 +22,7 @@
             height: 100vh;
             flex-direction: column;
             background: linear-gradient(to bottom, #0f2027, #203a43, #2c5364);
+            position: relative;
         }
 
         canvas {
@@ -32,28 +33,47 @@
             max-width: 100%;
         }
 
-        /* --- 2. 啟動選單 --- */
-        #setup-panel {
-            background: white;
-            color: #202124;
-            padding: 30px;
-            border-radius: 12px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            text-align: center;
+        /* --- 2. HUD (抬頭顯示器) --- */
+        #hud-bar {
             position: absolute;
-            top: 50%;
+            top: 20px;
             left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 200;
-            width: 420px;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 40px;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 10px 30px;
+            border-radius: 30px;
+            font-size: 20px;
+            font-weight: bold;
+            z-index: 10;
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .hud-item { display: flex; align-items: center; gap: 8px; }
+        .hud-icon { font-size: 24px; }
+        .hud-value { font-family: monospace; font-size: 24px; }
+        
+        #timer-val { color: #f4b400; }
+        #lives-val { color: #ea4335; letter-spacing: 2px; }
+        #score-val { color: #4cc9f0; }
+
+        /* --- 3. 啟動選單 --- */
+        #setup-panel {
+            background: white; color: #202124;
+            padding: 30px; border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            text-align: center; position: absolute;
+            top: 50%; left: 50%; transform: translate(-50%, -50%);
+            z-index: 200; width: 420px;
         }
         
         .input-group { margin-bottom: 20px; text-align: left; }
         label { font-weight: 500; display: block; margin-bottom: 8px; color: #3c4043; }
         input, select { 
-            width: 100%; padding: 12px; 
-            border: 1px solid #dadce0; border-radius: 6px; 
-            box-sizing: border-box; font-size: 14px;
+            width: 100%; padding: 12px; border: 1px solid #dadce0; 
+            border-radius: 6px; box-sizing: border-box; font-size: 14px;
         }
         button#start-btn {
             background-color: #1a73e8; color: white;
@@ -64,65 +84,50 @@
         button#start-btn:hover { background-color: #1557b0; }
         button:disabled { background-color: #dadce0; color: #80868b; cursor: default; }
 
-        /* --- 3. Teachable Machine 介面 (左上) --- */
+        /* --- 4. TM 介面 (左上) --- */
         #tm-interface {
-            position: fixed;
-            top: 20px;
-            left: 20px;
-            width: 280px;
-            background: white;
-            color: #202124;
-            border-radius: 8px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-            z-index: 100;
-            display: none;
+            position: fixed; top: 20px; left: 20px; width: 260px;
+            background: white; color: #202124;
+            border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            z-index: 100; display: none;
         }
-
-        .tm-header {
-            padding: 12px 16px;
-            border-bottom: 1px solid #e8eaed;
-            font-size: 14px; font-weight: 500; color: #5f6368;
-            display: flex; justify-content: space-between; align-items: center;
-        }
-
-        .tm-body { padding: 16px; }
-
-        .webcam-box {
-            width: 100%; height: 180px;
-            background: #f8f9fa; border-radius: 4px;
-            overflow: hidden; margin-bottom: 15px;
-            display: flex; justify-content: center; align-items: center;
-        }
-        
+        .tm-header { padding: 10px 16px; border-bottom: 1px solid #e8eaed; font-size: 14px; font-weight: 500; display: flex; justify-content: space-between; align-items: center; color: #5f6368;}
+        .tm-body { padding: 10px; }
+        .webcam-box { width: 100%; height: 160px; background: #f8f9fa; border-radius: 4px; overflow: hidden; margin-bottom: 10px; display: flex; justify-content: center; align-items: center; }
         .webcam-box canvas { width: 100%; height: 100%; object-fit: cover; }
-
-        /* 條狀圖樣式 */
         .class-row { display: flex; align-items: center; margin-bottom: 6px; font-size: 13px; }
         .class-name { width: 60px; text-align: right; margin-right: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .bar-bg { flex-grow: 1; height: 18px; background: #f1f3f4; border-radius: 3px; overflow: hidden; }
+        .bar-bg { flex-grow: 1; height: 12px; background: #f1f3f4; border-radius: 3px; overflow: hidden; }
         .bar-fill { height: 100%; width: 0%; transition: width 0.1s; }
-        .class-percent { width: 35px; text-align: right; font-size: 11px; color: #5f6368; margin-left: 5px; }
 
-        .hint {
-            margin-top: 12px; font-size: 12px; color: #d93025; text-align: center;
-            background: #fce8e6; padding: 6px; border-radius: 4px;
+        /* 遊戲結束覆蓋層 */
+        #game-over-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7); display: none;
+            justify-content: center; align-items: center; flex-direction: column;
+            z-index: 50; backdrop-filter: blur(5px);
         }
-        
-        /* 箭頭指示器 (Visual Feedback) */
+        #game-over-title { font-size: 48px; font-weight: bold; margin-bottom: 10px; color: #ea4335; text-shadow: 2px 2px 0px #fff; }
+        #game-over-msg { font-size: 24px; margin-bottom: 30px; color: #fff; }
+        .restart-btn {
+            background: #34a853; color: white; padding: 15px 40px;
+            border: none; border-radius: 30px; font-size: 20px; cursor: pointer;
+            box-shadow: 0 4px 15px rgba(52, 168, 83, 0.4);
+        }
+
         #direction-indicator {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            font-size: 100px; color: rgba(255,255,255,0.2); pointer-events: none;
-            font-weight: bold;
+            font-size: 100px; color: rgba(255,255,255,0.1); pointer-events: none; font-weight: bold;
         }
-
     </style>
 </head>
 <body>
 
     <div id="setup-panel">
-        <h2 style="margin-top:0;">🌌 AI Sky Catcher</h2>
+        <h2 style="margin-top:0;">🌌 AI Sky Catcher v2.1</h2>
         <p style="color:#5f6368; font-size: 0.9em; margin-bottom: 20px;">
-            請貼上包含 <b>"Left"</b> 與 <b>"Right"</b> 類別的模型連結。
+            控制：<b>Left</b> (左移) / <b>Right</b> (右移)<br>
+            <span style="color:#d93025">規則：3條命 | 限時30秒</span>
         </p>
         
         <div class="input-group">
@@ -142,23 +147,38 @@
 
     <div id="tm-interface">
         <div class="tm-header">
-            <span>Live Preview</span>
-            <span style="font-size:10px; background:#e8f0fe; color:#1967d2; padding:2px 6px; border-radius:4px;">CAM ON</span>
+            <span>AI Input</span>
+            <span style="font-size:10px; background:#e8f0fe; color:#1967d2; padding:2px 6px; border-radius:4px;">LIVE</span>
         </div>
         <div class="tm-body">
             <div class="webcam-box" id="webcam-container"></div>
-            <div style="font-size:12px; font-weight:bold; color:#5f6368; margin-bottom:5px;">Confidence</div>
             <div id="class-list"></div>
-            <div class="hint">需偵測到 "Left" 或 "Right"</div>
         </div>
     </div>
 
     <div id="game-wrapper">
+        <div id="hud-bar">
+            <div class="hud-item">
+                <span class="hud-icon">⏳</span>
+                <span class="hud-value" id="timer-val">30</span>
+            </div>
+            <div class="hud-item">
+                <span class="hud-icon">❤️</span>
+                <span class="hud-value" id="lives-val">❤️❤️❤️</span>
+            </div>
+            <div class="hud-item">
+                <span class="hud-icon">⭐</span>
+                <span class="hud-value" id="score-val">0</span>
+            </div>
+        </div>
+
         <div id="direction-indicator"></div>
-        <canvas id="gameCanvas" width="600" height="400"></canvas>
-        <div style="margin-top: 15px; text-align: center;">
-            <h2 id="score-display" style="margin:0; font-size: 2em;">Score: 0</h2>
-            <p style="color: #aaa; font-size: 14px;">(用身體左右移動來控制籃子)</p>
+        <canvas id="gameCanvas" width="800" height="500"></canvas>
+        
+        <div id="game-over-overlay">
+            <div id="game-over-title">GAME OVER</div>
+            <div id="game-over-msg">Time's up!</div>
+            <button class="restart-btn" onclick="resetGame()">再玩一次 (Replay)</button>
         </div>
     </div>
 
@@ -170,117 +190,152 @@
         // --- 1. 遊戲參數 ---
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
+        
         let gameRunning = false;
         let score = 0;
-        
-        // 玩家 (籃子)
-        let player = { x: 275, y: 340, w: 60, h: 40, color: '#4cc9f0', vx: 0 };
-        const FRICTION = 0.85; // 摩擦力 (讓滑動更自然)
-        const SPEED = 8;       // 移動速度
+        let lives = 3;
+        let timeLeft = 30;
+        let timerInterval = null;
 
-        // 掉落物
+        let player = { x: 350, y: 440, w: 80, h: 50, color: '#4cc9f0', vx: 0 };
+        const FRICTION = 0.85; 
+        const SPEED = 10;       
+
         let items = [];
-        let particles = []; // 爆炸特效
+        let particles = [];
         let spawnTimer = 0;
 
         // --- 2. 遊戲邏輯 ---
         function resetGame() {
-            gameRunning = true;
             score = 0;
+            lives = 3;
+            timeLeft = 30;
+            gameRunning = true;
             items = [];
             particles = [];
             player.x = canvas.width / 2 - player.w / 2;
-            document.getElementById('score-display').innerText = "Score: 0";
+            
+            document.getElementById('score-val').innerText = score;
+            document.getElementById('timer-val').innerText = timeLeft;
+            updateLivesUI();
+            document.getElementById('game-over-overlay').style.display = 'none';
+
+            if (timerInterval) clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                if (!gameRunning) return;
+                timeLeft--;
+                document.getElementById('timer-val').innerText = timeLeft;
+                
+                if (timeLeft <= 5) document.getElementById('timer-val').style.color = "#ea4335";
+                else document.getElementById('timer-val').style.color = "#f4b400";
+
+                if (timeLeft <= 0) {
+                    endGame("TIME'S UP!");
+                }
+            }, 1000);
+
             requestAnimationFrame(gameLoop);
+        }
+
+        function endGame(reason) {
+            gameRunning = false;
+            clearInterval(timerInterval);
+            document.getElementById('game-over-title').innerText = reason === "YOU DIED" ? "GAME OVER" : "TIME'S UP!";
+            document.getElementById('game-over-msg').innerText = `Final Score: ${score}`;
+            document.getElementById('game-over-overlay').style.display = 'flex';
+        }
+
+        function updateLivesUI() {
+            let hearts = "";
+            for(let i=0; i<lives; i++) hearts += "❤️";
+            document.getElementById('lives-val').innerText = hearts;
         }
 
         function gameLoop() {
             if (!gameRunning) return;
 
-            // 清除畫布
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // A. 更新玩家位置 (物理滑動效果)
             player.x += player.vx;
-            player.vx *= FRICTION; // 減速效果
-
-            // 邊界檢查
+            player.vx *= FRICTION;
             if (player.x < 0) player.x = 0;
             if (player.x + player.w > canvas.width) player.x = canvas.width - player.w;
 
-            // 繪製玩家 (梯形籃子)
             ctx.fillStyle = player.color;
             ctx.beginPath();
             ctx.moveTo(player.x, player.y);
             ctx.lineTo(player.x + player.w, player.y);
-            ctx.lineTo(player.x + player.w - 10, player.y + player.h);
-            ctx.lineTo(player.x + 10, player.y + player.h);
+            ctx.lineTo(player.x + player.w - 15, player.y + player.h);
+            ctx.lineTo(player.x + 15, player.y + player.h);
             ctx.closePath();
             ctx.fill();
 
-            // B. 生成掉落物
             spawnTimer++;
-            if (spawnTimer > 40) { // 每 40 fps 生成一個
+            let spawnRate = 40 - Math.floor((30 - timeLeft)); 
+            if (spawnRate < 15) spawnRate = 15;
+            
+            if (spawnTimer > spawnRate) { 
                 spawnItem();
                 spawnTimer = 0;
             }
 
-            // C. 更新掉落物
             for (let i = items.length - 1; i >= 0; i--) {
                 let item = items[i];
                 item.y += item.speed;
                 item.rotation += 0.05;
 
-                // 繪製星星或炸彈
                 drawEmoji(item.x, item.y, item.type === 'good' ? '⭐' : '💣', item.size, item.rotation);
 
-                // 碰撞判定
                 if (
                     item.x < player.x + player.w + 10 &&
                     item.x + item.size > player.x - 10 &&
                     item.y < player.y + player.h &&
                     item.y + item.size > player.y
                 ) {
-                    // 接到了！
                     if (item.type === 'good') {
                         score += 10;
                         createParticles(item.x, item.y, '#f4b400');
-                        player.color = '#70e000'; // 接到時變綠一下
-                        setTimeout(() => player.color = '#4cc9f0', 150);
+                        document.getElementById('score-val').innerText = score;
+                        flashPlayer('#70e000');
                     } else {
-                        score -= 20;
-                        createParticles(item.x, item.y, '#d93025');
-                        player.color = '#d93025'; // 炸到時變紅一下
-                        setTimeout(() => player.color = '#4cc9f0', 150);
+                        lives--;
+                        updateLivesUI();
+                        createParticles(item.x, item.y, '#ea4335');
+                        flashPlayer('#ea4335');
+                        
+                        if (lives <= 0) {
+                            endGame("YOU DIED");
+                            return; 
+                        }
                     }
-                    if (score < 0) score = 0;
-                    document.getElementById('score-display').innerText = "Score: " + score;
                     items.splice(i, 1);
                     continue;
                 }
 
-                // 掉出畫面
                 if (item.y > canvas.height) {
                     items.splice(i, 1);
                 }
             }
 
-            // D. 繪製特效粒子
             updateParticles();
-
             requestAnimationFrame(gameLoop);
         }
 
         function spawnItem() {
-            let isBomb = Math.random() < 0.2; // 20% 機率是炸彈
+            let isBomb = Math.random() < 0.3; 
             items.push({
-                x: Math.random() * (canvas.width - 30),
-                y: -30,
-                size: 30,
-                speed: 3 + Math.random() * 3, // 隨機速度
+                x: Math.random() * (canvas.width - 40),
+                y: -40,
+                size: 35,
+                speed: 4 + Math.random() * 3, 
                 type: isBomb ? 'bad' : 'good',
                 rotation: 0
             });
+        }
+
+        function flashPlayer(color) {
+            player.color = color;
+            setTimeout(() => player.color = '#4cc9f0', 200);
         }
 
         function drawEmoji(x, y, emoji, size, rotation) {
@@ -294,13 +349,12 @@
             ctx.restore();
         }
 
-        // 簡單的粒子特效
         function createParticles(x, y, color) {
-            for(let i=0; i<8; i++) {
+            for(let i=0; i<10; i++) {
                 particles.push({
                     x: x, y: y,
-                    vx: (Math.random() - 0.5) * 5,
-                    vy: (Math.random() - 0.5) * 5,
+                    vx: (Math.random() - 0.5) * 8,
+                    vy: (Math.random() - 0.5) * 8,
                     life: 1.0, color: color
                 });
             }
@@ -308,13 +362,12 @@
         function updateParticles() {
             for(let i=particles.length-1; i>=0; i--) {
                 let p = particles[i];
-                p.x += p.vx;
-                p.y += p.vy;
+                p.x += p.vx; p.y += p.vy;
                 p.life -= 0.05;
                 ctx.globalAlpha = p.life;
                 ctx.fillStyle = p.color;
                 ctx.beginPath();
-                ctx.arc(p.x, p.y, 3, 0, Math.PI*2);
+                ctx.arc(p.x, p.y, 4, 0, Math.PI*2);
                 ctx.fill();
                 ctx.globalAlpha = 1.0;
                 if(p.life <= 0) particles.splice(i, 1);
@@ -340,7 +393,6 @@
             statusMsg.innerText = "正在連線到 Google 伺服器...";
 
             try {
-                // 如果是第一次載入
                 if (!model) {
                     const modelURL = urlInput + "model.json";
                     const metadataURL = urlInput + "metadata.json";
@@ -358,16 +410,14 @@
                     await webcam.play();
                     window.requestAnimationFrame(loop);
 
-                    // 設置 UI
                     document.getElementById('webcam-container').appendChild(webcam.canvas);
                     createClassBars(model.getClassLabels());
                 }
 
-                // 切換介面
                 document.getElementById('setup-panel').style.display = 'none';
                 document.getElementById('tm-interface').style.display = 'block';
                 
-                resetGame();
+                resetGame(); 
 
             } catch (e) {
                 alert("錯誤：" + e);
@@ -385,6 +435,7 @@
             }
         }
 
+        // ⭐ 這裡修改了判斷邏輯 ⭐
         async function predict() {
             if (!model) return;
 
@@ -399,18 +450,15 @@
             let activeAction = "Idle";
             let maxScore = 0;
 
-            // 更新 UI 條狀圖
             for (let i = 0; i < maxPredictions; i++) {
                 const p = prediction[i];
                 const score = p.probability;
                 
-                // 更新 Bar
                 const bar = document.getElementById(`bar-${i}`);
-                const txt = document.getElementById(`percent-${i}`);
                 if (bar) {
                     bar.style.width = (score * 100) + "%";
                     bar.style.opacity = score > 0.1 ? 1 : 0.3;
-                    txt.innerText = Math.round(score * 100) + "%";
+                    bar.style.backgroundColor = barColors[i % barColors.length];
                 }
 
                 if (score > maxScore) {
@@ -419,14 +467,16 @@
                 }
             }
 
-            // 控制玩家 (門檻值 0.8)
             const indicator = document.getElementById('direction-indicator');
             
+            // --- 關鍵修改：轉成大寫後比較 ---
+            const actionUpperCase = activeAction.toUpperCase(); 
+
             if (maxScore > 0.8) {
-                if (activeAction === "Left") {
+                if (actionUpperCase === "LEFT") {
                     player.vx = -SPEED;
                     indicator.innerText = "◀";
-                } else if (activeAction === "Right") {
+                } else if (actionUpperCase === "RIGHT") {
                     player.vx = SPEED;
                     indicator.innerText = "▶";
                 } else {
@@ -441,13 +491,11 @@
             const list = document.getElementById('class-list');
             list.innerHTML = "";
             labels.forEach((label, index) => {
-                const color = barColors[index % barColors.length];
                 const row = document.createElement('div');
                 row.className = 'class-row';
                 row.innerHTML = `
                     <div class="class-name" title="${label}">${label}</div>
-                    <div class="bar-bg"><div class="bar-fill" id="bar-${index}" style="background-color:${color}"></div></div>
-                    <div class="class-percent" id="percent-${index}">0%</div>
+                    <div class="bar-bg"><div class="bar-fill" id="bar-${index}"></div></div>
                 `;
                 list.appendChild(row);
             });
