@@ -115,7 +115,7 @@
                 <!-- QR Code Section -->
                 <div class="flex flex-col items-center justify-center p-4 bg-blue-50 rounded-xl border border-blue-100 md:w-1/3">
                     <h3 class="text-sm font-bold text-blue-800 uppercase tracking-wide mb-2">邀請學生加入</h3>
-                    <div id="qrcode-container" class="bg-white p-2 rounded-lg shadow-sm mb-3"></div>
+                    <div id="qrcode-container" class="bg-white p-2 rounded-lg shadow-sm mb-3 min-w-[100px] min-h-[100px] flex items-center justify-center"></div>
                     <div class="text-center">
                         <p class="text-xs text-slate-500 mb-1">教室代碼</p>
                         <p class="text-3xl font-mono font-bold text-slate-800 tracking-widest" id="display-room-code">----</p>
@@ -193,7 +193,6 @@
             measurementId: "G-ZRRG2BM00F"
         };
 
-        // Environment safety: Use canvas config if present to ensure rules pass, otherwise fallback to user config.
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : userFirebaseConfig;
         const rootAppId = typeof __app_id !== 'undefined' ? __app_id : 'fwft-quickchat';
         
@@ -217,10 +216,8 @@
             { main: 'text-violet-600', border: 'border-violet-500', bg: 'bg-violet-50', hex: '#7c3aed' }
         ];
 
-        // Unique colors for ghost overlapping
         const GHOST_COLORS = ['#ef4444', '#f97316', '#84cc16', '#06b6d4', '#ec4899', '#8b5cf6', '#64748b'];
 
-        // Global State
         let localState = Array.from({ length: TOTAL_GROUPS }, (_, i) => ({
             id: i + 1,
             label: `Class ${String.fromCharCode(65 + i)}`, 
@@ -230,18 +227,19 @@
         }));
 
         let panelVisibility = { data: true };
-        let sliderMode = 0; // 0: Hidden, 1: Show Mean (Shift), 2: Show Mean & SD (Shift & Scale)
+        let sliderMode = 0; 
         let showStats = false;
 
         // Multiplayer State
-        let currentRole = null; // 'teacher' or 'student'
+        let currentRole = null; 
         let currentRoomId = null;
         let currentUser = null;
-        let studentsData = {}; // Maps uid -> { name, state: [], color, visible }
+        let authInitialized = false;
+        let studentsData = {}; 
         let unsubscribeStudents = null;
         let syncTimeout = null;
 
-        // Ensure functions are globally accessible for inline HTML handlers
+        // Global Bindings
         window.togglePanel = togglePanel;
         window.cycleSliderMode = cycleSliderMode;
         window.toggleStats = toggleStats;
@@ -253,6 +251,19 @@
         window.backToRoles = backToRoles;
         window.toggleStudentGhost = toggleStudentGhost;
 
+        // --- Custom Error Toast UI ---
+        function showError(msg) {
+            const errDiv = document.createElement('div');
+            errDiv.className = 'fixed top-4 left-1/2 transform -translate-x-1/2 bg-red-600 text-white px-6 py-3 rounded-lg shadow-xl z-[100] font-bold text-sm fade-in';
+            errDiv.textContent = msg;
+            document.body.appendChild(errDiv);
+            setTimeout(() => {
+                errDiv.style.opacity = '0';
+                errDiv.style.transition = 'opacity 0.5s';
+                setTimeout(() => errDiv.remove(), 500);
+            }, 3500);
+        }
+
         // --- Initialization ---
         async function init() {
             renderDataInputs();
@@ -260,7 +271,6 @@
             renderCanvases();
             updatePanelUI();
             
-            // Handle URL Parameters for auto-join
             const urlParams = new URLSearchParams(window.location.search);
             const roomParam = urlParams.get('room');
             if (roomParam) {
@@ -268,15 +278,12 @@
                 prepareJoin();
             }
 
-            // Window resize handler
             window.addEventListener('resize', () => {
                 localState.forEach((_, idx) => drawGroup(idx));
             });
 
-            // Initial Draw
             localState.forEach((_, idx) => drawGroup(idx));
 
-            // Authenticate Anonymously before any Firestore actions (RULE 3)
             try {
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                     await signInWithCustomToken(auth, __initial_auth_token);
@@ -285,47 +292,62 @@
                 }
             } catch (err) {
                 console.error("Auth error:", err);
+                showError("身分驗證失敗，請重整網頁。");
             }
 
             onAuthStateChanged(auth, (user) => {
                 currentUser = user;
+                authInitialized = true;
             });
         }
 
         // --- Multiplayer Logic ---
 
         async function startTeacher() {
-            if (!currentUser) return;
             showLoading(true);
-            currentRole = 'teacher';
             
-            // Generate Random 4-letter room code
+            // Wait up to 3 seconds for auth to initialize if it hasn't yet
+            let retries = 0;
+            while (!authInitialized && retries < 30) {
+                await new Promise(r => setTimeout(r, 100));
+                retries++;
+            }
+
+            if (!currentUser) {
+                showError("無法連線到伺服器 (Auth Failed)，請重整網頁。");
+                showLoading(false);
+                return;
+            }
+
+            currentRole = 'teacher';
             currentRoomId = Math.random().toString(36).substring(2, 6).toUpperCase();
             
             try {
-                // Register room in Firebase (using strict Canvas paths RULE 1)
                 const roomRef = doc(db, 'artifacts', rootAppId, 'public', 'data', 'rooms', currentRoomId);
                 await setDoc(roomRef, { created: Date.now(), hostId: currentUser.uid });
 
-                // Update UI
                 document.getElementById('setup-modal').classList.add('hidden');
                 document.getElementById('panel-teacher').classList.remove('hidden');
                 document.getElementById('display-room-code').textContent = currentRoomId;
                 
-                // Set Badge
                 const badge = document.getElementById('role-badge');
                 badge.textContent = "Teacher";
                 badge.className = "px-2 py-0.5 text-[10px] rounded-full uppercase tracking-wider font-bold bg-blue-100 text-blue-700 inline-block";
 
-                // Generate QR Code linking to this page + room param
-                const joinUrl = new URL(window.location.href);
-                joinUrl.searchParams.set('room', currentRoomId);
-                new QRCode(document.getElementById('qrcode-container'), {
-                    text: joinUrl.toString(),
-                    width: 100, height: 100, colorDark: "#1e293b", colorLight: "#ffffff"
-                });
+                // Safe URL formatting for iframes
+                const baseUrl = window.location.href.split('?')[0];
+                const joinUrl = baseUrl === 'about:srcdoc' ? window.location.origin + '?room=' + currentRoomId : baseUrl + '?room=' + currentRoomId;
+                
+                if (typeof QRCode !== 'undefined') {
+                    document.getElementById('qrcode-container').innerHTML = '';
+                    new QRCode(document.getElementById('qrcode-container'), {
+                        text: joinUrl,
+                        width: 100, height: 100, colorDark: "#1e293b", colorLight: "#ffffff"
+                    });
+                } else {
+                    document.getElementById('qrcode-container').innerHTML = '<span class="text-xs text-red-500">無法加載 QR 碼</span>';
+                }
 
-                // Listen for students joining (RULE 1 & RULE 2)
                 const studentsRef = collection(db, 'artifacts', rootAppId, 'public', 'data', `students_${currentRoomId}`);
                 unsubscribeStudents = onSnapshot(studentsRef, (snapshot) => {
                     snapshot.docChanges().forEach((change) => {
@@ -337,7 +359,7 @@
                                 name: data.name,
                                 state: data.state || localState.map(s => ({shift: 0, scale: 1})),
                                 color: GHOST_COLORS[colorIndex % GHOST_COLORS.length],
-                                visible: false // Initially hidden to not clutter
+                                visible: false 
                             };
                         } else if (change.type === 'modified') {
                             if (studentsData[sId]) {
@@ -348,17 +370,18 @@
                         }
                     });
                     renderStudentList();
-                    // Redraw canvases to reflect new ghost data
                     localState.forEach((_, idx) => drawGroup(idx));
                 }, (error) => {
                     console.error("Error listening to students:", error);
+                    showError("學生資料同步失敗");
                 });
 
             } catch (err) {
                 console.error("Failed to create room", err);
-                alert("無法建立教室"); // fallback alert if totally fails
+                showError("無法建立教室: 權限不足或網路錯誤");
+            } finally {
+                showLoading(false);
             }
-            showLoading(false);
         }
 
         function prepareJoin() {
@@ -379,40 +402,47 @@
 
         async function confirmJoin() {
             const name = document.getElementById('student-name').value.trim() || "匿名學生";
-            if (!currentUser || !currentRoomId) return;
-            
             showLoading(true);
+
+            let retries = 0;
+            while (!authInitialized && retries < 30) {
+                await new Promise(r => setTimeout(r, 100));
+                retries++;
+            }
+
+            if (!currentUser || !currentRoomId) {
+                showError("無法連線到伺服器或代碼無效");
+                showLoading(false);
+                return;
+            }
+            
             currentRole = 'student';
 
             try {
-                // Initial save of student presence
                 await saveStudentStateToFirebase(name);
 
-                // Update UI
                 document.getElementById('setup-modal').classList.add('hidden');
                 
-                // Hide data input button/panel for students
                 document.getElementById('btn-toggle-data').classList.add('hidden');
                 panelVisibility.data = false;
                 updatePanelUI();
                 
-                // Set Badge
                 const badge = document.getElementById('role-badge');
                 badge.textContent = `Student: ${name}`;
                 badge.className = "px-2 py-0.5 text-[10px] rounded-full uppercase tracking-wider font-bold bg-emerald-100 text-emerald-700 inline-block";
 
             } catch (error) {
                 console.error("Failed to join room", error);
+                showError("加入失敗，請確認代碼是否正確。");
+            } finally {
+                showLoading(false);
             }
-            showLoading(false);
         }
 
         async function saveStudentStateToFirebase(nameOverride = null) {
             if (currentRole !== 'student' || !currentUser || !currentRoomId) return;
             
             const studentRef = doc(db, 'artifacts', rootAppId, 'public', 'data', `students_${currentRoomId}`, currentUser.uid);
-            
-            // Only send shift and scale to save bandwidth
             const minimalState = localState.map(g => ({ shift: g.shift, scale: g.scale }));
             
             const payload = {
@@ -422,7 +452,6 @@
             if (nameOverride) payload.name = nameOverride;
 
             try {
-                // Use setDoc with merge to preserve name if already set
                 await setDoc(studentRef, payload, { merge: true });
             } catch (err) {
                 console.error("Sync error:", err);
@@ -455,8 +484,8 @@
         function toggleStudentGhost(uid, isVisible) {
             if (studentsData[uid]) {
                 studentsData[uid].visible = isVisible;
-                renderStudentList(); // Re-render to update box styles
-                localState.forEach((_, idx) => drawGroup(idx)); // Redraw canvases
+                renderStudentList(); 
+                localState.forEach((_, idx) => drawGroup(idx)); 
             }
         }
 
@@ -620,7 +649,6 @@
                 const disp = document.getElementById(`disp-${field}-${index}`);
                 if (disp) disp.textContent = localState[index][field].toFixed(1);
                 
-                // Realtime Multiplayer Sync (Debounced to save bandwidth)
                 if (currentRole === 'student') {
                     clearTimeout(syncTimeout);
                     syncTimeout = setTimeout(() => saveStudentStateToFirebase(), 300);
@@ -730,7 +758,7 @@
                 const tMean = calculateMean(transformedData);
                 const tSD = calculateSD(transformedData, tMean);
 
-                // Stats Label Update (Only for local main state)
+                // Stats Label Update
                 if (!isGhost) {
                     const statsEl = document.getElementById(`viz-stats-${index}`);
                     if(statsEl) {
@@ -754,7 +782,6 @@
                 pointsToDraw.forEach(pt => {
                     let normalizedX = Math.max(0, Math.min(10, pt.val));
                     const cx = marginX + (normalizedX / 10) * plotWidth;
-                    // Slightly offset ghost items vertically to see overlap better
                     const offset = isGhost ? 2 : 0; 
                     const cy = axisY - 8 - (pt.stackIndex * (dotRadius * 2 + stackGap)) - offset;
                     if (cy < marginTop) return; 
@@ -777,8 +804,7 @@
                     }
                 });
 
-                // Draw Mean & SD Line (Only if stats shown and not ghost, OR if ghost and we want to see it)
-                // For a cleaner look, ghosts only show dots. Main state shows lines if toggled.
+                // Draw Mean & SD Line 
                 if (!isGhost && showStats && tMean >= 0 && tMean <= 10) {
                     const meanX = marginX + (tMean / 10) * plotWidth;
                     
@@ -816,14 +842,13 @@
             // 2. Draw Visible Ghost States (if Teacher)
             if (currentRole === 'teacher') {
                 Object.values(studentsData).forEach(student => {
-                    if (student.visible && student.state[index]) {
+                    if (student.visible && student.state && student.state[index]) {
                         drawDataPoints(rawData, student.state[index].shift, student.state[index].scale, student.color, true);
                     }
                 });
             }
         }
 
-        // Run Init
         init();
     </script>
 </body>
