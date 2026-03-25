@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>互動統計學 - 尋找平均數與標準差</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- QRCode 產生器 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .slider-thumb::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #4F46E5;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-800">
+
+    <!-- ================= 老師視角 (Teacher View) ================= -->
+    <div id="teacher-view" class="hidden max-w-7xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-4 gap-6">
+        
+        <!-- 左側控制台 -->
+        <div class="lg:col-span-1 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+            <h1 class="text-2xl font-bold mb-6 text-indigo-900">👨‍🏫 老師控制台</h1>
+            
+            <div class="mb-8 bg-indigo-50 p-4 rounded-xl text-center">
+                <p class="text-sm text-indigo-700 font-semibold mb-2">請學生掃描加入房間</p>
+                <h2 id="roomIdDisplay" class="text-3xl font-black text-indigo-900 tracking-wider mb-4"></h2>
+                <div id="qrcode" class="flex justify-center bg-white p-2 rounded-lg inline-block border border-indigo-100 mx-auto"></div>
+                <button id="copyLinkBtn" class="mt-4 text-xs bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full hover:bg-indigo-200 transition">複製連結</button>
+            </div>
+
+            <h3 class="font-bold mb-3 text-slate-700 flex items-center justify-between">
+                已連線學生 <span id="studentCount" class="bg-indigo-100 text-indigo-800 text-xs px-2 py-1 rounded-full">0</span>
+            </h3>
+            <div class="h-64 overflow-y-auto pr-2">
+                <ul id="studentList" class="space-y-3 text-sm">
+                    <!-- 學生清單動態生成於此 -->
+                    <li class="text-slate-400 italic text-center py-4" id="emptyStudentList">等待學生加入中...</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- 右側畫布 -->
+        <div class="lg:col-span-3 bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col items-center justify-center">
+            <div class="w-full flex justify-between items-center mb-4 px-4">
+                <h2 class="text-xl font-bold text-slate-700">數據分佈疊影 (常態分配 PDF)</h2>
+                <div class="flex space-x-4 text-sm font-medium">
+                    <div class="flex items-center"><span class="w-3 h-3 rounded-full bg-black mr-2"></span> 目標數據 (基準)</div>
+                    <div class="flex items-center"><span class="w-3 h-3 rounded-full bg-indigo-400 mr-2 opacity-60"></span> 學生預測 (幽靈)</div>
+                </div>
+            </div>
+            <canvas id="teacherCanvas" width="800" height="500" class="bg-slate-50 rounded-xl border border-slate-200 w-full max-w-4xl shadow-inner"></canvas>
+        </div>
+    </div>
+
+
+    <!-- ================= 學生視角 (Student View) ================= -->
+    <div id="student-view" class="hidden max-w-md mx-auto p-6 mt-10 bg-white rounded-3xl shadow-lg border border-slate-200">
+        <div class="text-center mb-6">
+            <h1 class="text-2xl font-bold text-indigo-900 mb-1">🧑‍🎓 學生操作面板</h1>
+            <p class="text-sm text-slate-500">房間：<span id="studentRoomDisplay" class="font-bold text-indigo-600"></span></p>
+        </div>
+
+        <!-- 登入畫面 -->
+        <div id="studentLogin" class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">請輸入您的名字或座號</label>
+                <input type="text" id="studentNameInput" class="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition" placeholder="例如：王小明">
+            </div>
+            <button id="joinBtn" class="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl hover:bg-indigo-700 transition shadow-md">進入教室</button>
+        </div>
+
+        <!-- 操作畫面 -->
+        <div id="studentControls" class="hidden space-y-6">
+            <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                <div class="flex justify-between items-end mb-2">
+                    <label class="font-bold text-slate-700">平移 (Mean / μ)</label>
+                    <span id="meanValue" class="text-lg font-black text-indigo-600">0.0</span>
+                </div>
+                <input type="range" id="meanSlider" min="-5" max="5" step="0.1" value="0" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer slider-thumb">
+                <div class="flex justify-between text-xs text-slate-400 mt-1"><span>-5</span><span>0</span><span>+5</span></div>
+            </div>
+
+            <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                <div class="flex justify-between items-end mb-2">
+                    <label class="font-bold text-slate-700">縮放 (Std Dev / σ)</label>
+                    <span id="sdValue" class="text-lg font-black text-emerald-600">1.0</span>
+                </div>
+                <input type="range" id="sdSlider" min="0.5" max="3" step="0.1" value="1" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer slider-thumb">
+                <div class="flex justify-between text-xs text-slate-400 mt-1"><span>0.5 (集中)</span><span>3.0 (分散)</span></div>
+            </div>
+
+            <div class="mt-6 border-t pt-4">
+                <p class="text-xs text-center text-slate-400 mb-2">您的分佈預覽</p>
+                <canvas id="studentCanvas" width="400" height="200" class="bg-white rounded-xl border border-slate-200 w-full"></canvas>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ================= Firebase 與 核心邏輯 ================= -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+        import { getDatabase, ref, onValue, set, update, onDisconnect, remove } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
+
+        // 您的 Firebase 設定
+        const firebaseConfig = {
+            apiKey: "AIzaSyAR7Tjp8k8dHybMWpmx-MfaV9Ziyl3eADc",
+            authDomain: "fwft-quickchat.firebaseapp.com",
+            databaseURL: "https://fwft-quickchat-default-rtdb.firebaseio.com",
+            projectId: "fwft-quickchat",
+            storageBucket: "fwft-quickchat.firebasestorage.app",
+            messagingSenderId: "27728669602",
+            appId: "1:27728669602:web:674bfa6cbb66320985e0fb"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        // --- 路由邏輯：判斷是老師還是學生 ---
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlRoomId = urlParams.get('room');
+
+        // 定義基準目標答案
+        const TARGET_MEAN = 2.5;
+        const TARGET_SD = 1.2;
+
+        if (urlRoomId) {
+            initStudentView(urlRoomId);
+        } else {
+            initTeacherView();
+        }
+
+        // ================= 老師端邏輯 =================
+        function initTeacherView() {
+            document.getElementById('teacher-view').classList.remove('hidden');
+            
+            // 產生 6 碼隨機房間號
+            const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
+            document.getElementById('roomIdDisplay').innerText = roomId;
+
+            // 產生加入連結與 QR Code
+            const joinUrl = window.location.origin + window.location.pathname + `?room=${roomId}`;
+            new QRCode(document.getElementById("qrcode"), {
+                text: joinUrl,
+                width: 140,
+                height: 140,
+                colorDark : "#312e81", // Indigo 900
+                colorLight : "#ffffff"
+            });
+
+            document.getElementById('copyLinkBtn').addEventListener('click', () => {
+                navigator.clipboard.writeText(joinUrl);
+                alert("已複製學生加入連結！");
+            });
+
+            // 監聽 Firebase 該房間的學生狀態
+            const studentsRef = ref(db, `sessions/${roomId}/students`);
+            let studentData = {};
+
+            onValue(studentsRef, (snapshot) => {
+                studentData = snapshot.val() || {};
+                updateTeacherUI(roomId, studentData);
+                renderTeacherCanvas(studentData);
+            });
+
+            // 初次繪製空畫布
+            renderTeacherCanvas({});
+        }
+
+        function updateTeacherUI(roomId, studentData) {
+            const listEl = document.getElementById('studentList');
+            const emptyEl = document.getElementById('emptyStudentList');
+            const countEl = document.getElementById('studentCount');
+            
+            const studentIds = Object.keys(studentData);
+            countEl.innerText = studentIds.length;
+
+            if (studentIds.length === 0) {
+                emptyEl.style.display = 'block';
+                listEl.innerHTML = '';
+                listEl.appendChild(emptyEl);
+                return;
+            }
+
+            emptyEl.style.display = 'none';
+            listEl.innerHTML = '';
+
+            // 動態生成學生名單與 Toggle 開關
+            Object.entries(studentData).forEach(([id, data]) => {
+                const li = document.createElement('li');
+                li.className = "flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100";
+                
+                const isChecked = data.visible !== false; // 預設顯示
+                
+                li.innerHTML = `
+                    <div class="flex items-center space-x-3">
+                        <div class="w-4 h-4 rounded-full" style="background-color: ${data.color}"></div>
+                        <div>
+                            <p class="font-bold text-slate-700">${data.name}</p>
+                            <p class="text-xs text-slate-500">μ: ${data.mean.toFixed(1)} | σ: ${data.sd.toFixed(1)}</p>
+                        </div>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                      <input type="checkbox" class="sr-only peer" ${isChecked ? 'checked' : ''} data-id="${id}">
+                      <div class="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-500"></div>
+                    </label>
+                `;
+                listEl.appendChild(li);
+
+                // 綁定切換顯示事件
+                const checkbox = li.querySelector('input');
+                checkbox.addEventListener('change', (e) => {
+                    update(ref(db, `sessions/${roomId}/students/${id}`), { visible: e.target.checked });
+                });
+            });
+        }
+
+        function renderTeacherCanvas(studentData) {
+            const canvas = document.getElementById('teacherCanvas');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 畫網格與座標軸
+            drawGrid(ctx, canvas.width, canvas.height);
+
+            // 1. 畫目標標準答案 (實線，黑色)
+            drawNormalCurve(ctx, canvas.width, canvas.height, TARGET_MEAN, TARGET_SD, 'rgba(15, 23, 42, 0.9)', 3);
+
+            // 2. 畫學生的幽靈數據 (半透明疊影)
+            Object.values(studentData).forEach(student => {
+                if (student.visible !== false) {
+                    drawNormalCurve(ctx, canvas.width, canvas.height, student.mean, student.sd, student.color, 2, true);
+                }
+            });
+        }
+
+
+        // ================= 學生端邏輯 =================
+        function initStudentView(roomId) {
+            document.getElementById('student-view').classList.remove('hidden');
+            document.getElementById('studentRoomDisplay').innerText = roomId;
+
+            const joinBtn = document.getElementById('joinBtn');
+            const nameInput = document.getElementById('studentNameInput');
+            
+            // 隨機分配一個顏色給學生
+            const colors = ['rgba(239, 68, 68, 0.7)', 'rgba(245, 158, 11, 0.7)', 'rgba(16, 185, 129, 0.7)', 'rgba(59, 130, 246, 0.7)', 'rgba(139, 92, 246, 0.7)', 'rgba(236, 72, 153, 0.7)'];
+            const myColor = colors[Math.floor(Math.random() * colors.length)];
+            const studentId = 'std_' + Math.random().toString(36).substring(2, 9);
+            const myRef = ref(db, `sessions/${roomId}/students/${studentId}`);
+
+            joinBtn.addEventListener('click', () => {
+                const name = nameInput.value.trim() || '匿名學生';
+                
+                // 進入房間，寫入初始狀態，並設定斷線時自動移除
+                set(myRef, {
+                    name: name,
+                    color: myColor,
+                    visible: true,
+                    mean: 0,
+                    sd: 1
+                });
+                onDisconnect(myRef).remove();
+
+                // 切換 UI
+                document.getElementById('studentLogin').classList.add('hidden');
+                document.getElementById('studentControls').classList.remove('hidden');
+                
+                setupStudentSliders(myRef, myColor);
+            });
+        }
+
+        function setupStudentSliders(myRef, myColor) {
+            const meanSlider = document.getElementById('meanSlider');
+            const sdSlider = document.getElementById('sdSlider');
+            const meanValEl = document.getElementById('meanValue');
+            const sdValEl = document.getElementById('sdValue');
+            const canvas = document.getElementById('studentCanvas');
+            const ctx = canvas.getContext('2d');
+
+            // 繪圖函數
+            const updateLocalCanvas = () => {
+                const mean = parseFloat(meanSlider.value);
+                const sd = parseFloat(sdSlider.value);
+                meanValEl.innerText = mean.toFixed(1);
+                sdValEl.innerText = sd.toFixed(1);
+                
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                drawGrid(ctx, canvas.width, canvas.height);
+                // 畫自己的基準線(灰色)
+                drawNormalCurve(ctx, canvas.width, canvas.height, 0, 1, 'rgba(200, 200, 200, 0.5)', 2);
+                // 畫自己調整後的線
+                drawNormalCurve(ctx, canvas.width, canvas.height, mean, sd, myColor, 3);
+            };
+
+            // 防抖更新 Firebase (避免滑動時送出過多請求)
+            let debounceTimer;
+            const onSliderChange = () => {
+                updateLocalCanvas(); // 本地畫面即時更新
+                
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(() => {
+                    update(myRef, {
+                        mean: parseFloat(meanSlider.value),
+                        sd: parseFloat(sdSlider.value)
+                    });
+                }, 80); // 80毫秒的防抖
+            };
+
+            meanSlider.addEventListener('input', onSliderChange);
+            sdSlider.addEventListener('input', onSliderChange);
+            
+            // 初始化畫面
+            updateLocalCanvas();
+        }
+
+
+        // ================= 共用繪圖工具函數 =================
+        
+        // 常態分配 PDF (機率密度函數) 公式
+        function normalPDF(x, mean, sd) {
+            const variance = sd * sd;
+            const coeff = 1 / Math.sqrt(2 * Math.PI * variance);
+            const exponent = -Math.pow(x - mean, 2) / (2 * variance);
+            return coeff * Math.exp(exponent);
+        }
+
+        function drawGrid(ctx, width, height) {
+            ctx.beginPath();
+            ctx.strokeStyle = '#e2e8f0'; // slate-200
+            ctx.lineWidth = 1;
+            
+            // 畫 X 軸 (y=height) 與中間線
+            const midY = height - 30;
+            ctx.moveTo(0, midY); ctx.lineTo(width, midY);
+            ctx.moveTo(width/2, 0); ctx.lineTo(width/2, height);
+            ctx.stroke();
+
+            // 標示刻度 (X:-8 到 8)
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = '12px Arial';
+            ctx.textAlign = 'center';
+            for (let i = -8; i <= 8; i += 2) {
+                const xPx = mapX(i, width);
+                ctx.fillText(i.toString(), xPx, height - 10);
+                ctx.beginPath();
+                ctx.moveTo(xPx, midY - 5);
+                ctx.lineTo(xPx, midY + 5);
+                ctx.stroke();
+            }
+        }
+
+        // 將數學 X 座標 (-8 到 +8) 映射到 Canvas 像素 X
+        function mapX(x, canvasWidth) {
+            const range = 16; // -8 to 8
+            return ((x + 8) / range) * canvasWidth;
+        }
+
+        function drawNormalCurve(ctx, width, height, mean, sd, color, lineWidth, fill = false) {
+            ctx.beginPath();
+            ctx.strokeStyle = color;
+            ctx.lineWidth = lineWidth;
+            
+            if (fill) {
+                ctx.fillStyle = color.replace('0.7)', '0.15)').replace('0.4)', '0.15)'); // 將透明度降低作為填充
+            }
+
+            const points = [];
+            // 從 x=-8 掃描到 x=8
+            for (let x = -8; x <= 8; x += 0.1) {
+                const y = normalPDF(x, mean, sd);
+                const pxX = mapX(x, width);
+                // Y軸映射: PDF最大值大概在 0.8 左右 (當SD=0.5)，所以把Y=1映射為畫布高度的80%
+                const pxY = (height - 30) - (y * (height * 0.8)); 
+                points.push({x: pxX, y: pxY});
+            }
+
+            ctx.moveTo(points[0].x, points[0].y);
+            points.forEach(p => ctx.lineTo(p.x, p.y));
+            ctx.stroke();
+
+            if (fill) {
+                ctx.lineTo(width, height-30);
+                ctx.lineTo(0, height-30);
+                ctx.closePath();
+                ctx.fill();
+            }
+        }
+    </script>
+</body>
+</html>
