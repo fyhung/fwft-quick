@@ -3,136 +3,147 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>互動數據分佈模擬器 (連線版)</title>
+    <title>互動數據分佈模擬器 (Multiplayer)</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- QR Code Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
-        /* Custom slider styling for better touch interaction */
-        input[type=range] {
-            -webkit-appearance: none; 
-            background: transparent; 
-        }
+        /* Custom slider styling */
+        input[type=range] { -webkit-appearance: none; background: transparent; }
         input[type=range]::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            height: 18px;
-            width: 18px;
-            border-radius: 50%;
-            background: currentColor; /* Use text color for thumb */
-            cursor: pointer;
-            margin-top: -7px; 
-            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
-            border: 2px solid white;
+            -webkit-appearance: none; height: 18px; width: 18px; border-radius: 50%;
+            background: currentColor; cursor: pointer; margin-top: -7px; 
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3); border: 2px solid white;
         }
         input[type=range]::-webkit-slider-runnable-track {
-            width: 100%;
-            height: 4px;
-            cursor: pointer;
-            background: #e2e8f0;
-            border-radius: 2px;
+            width: 100%; height: 4px; cursor: pointer; background: #e2e8f0; border-radius: 2px;
         }
-        input[type=range]:focus {
-            outline: none;
-        }
-        /* Style for disabled student inputs */
-        input:disabled, textarea:disabled {
-            cursor: not-allowed;
-            opacity: 0.7;
-            background-color: #f8fafc !important;
-        }
-        input[type=range]:disabled::-webkit-slider-thumb {
-            cursor: not-allowed;
-            box-shadow: none;
-        }
+        input[type=range]:focus { outline: none; }
+        .canvas-container { position: relative; width: 100%; height: 100px; }
+        canvas { display: block; width: 100%; height: 100%; }
         
-        .canvas-container {
-            position: relative;
-            width: 100%;
-            height: 100px; /* Reduced height for stacked view */
-        }
-        canvas {
-            display: block;
-            width: 100%;
-            height: 100%;
-        }
-        /* Transition utility */
-        .panel-transition {
-            transition: all 0.3s ease-in-out;
-        }
+        /* Modal Transitions */
+        .fade-in { animation: fadeIn 0.3s ease-in-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        
+        /* Custom scrollbar for student list */
+        .custom-scroll::-webkit-scrollbar { width: 6px; }
+        .custom-scroll::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
     </style>
 </head>
 <body class="bg-slate-100 text-slate-800 font-sans p-4 min-h-screen relative">
 
-    <!-- 登入/身分選擇畫面 -->
-    <div id="role-overlay" class="fixed inset-0 bg-slate-900/90 z-50 flex items-center justify-center p-4">
-        <div class="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl text-center">
-            <h2 class="text-2xl font-bold text-slate-800 mb-2">互動數據分佈模擬器</h2>
-            <p class="text-slate-500 text-sm mb-8">連線同步版 - 請選擇身分</p>
+    <!-- Entry / Role Selection Modal -->
+    <div id="setup-modal" class="fixed inset-0 bg-slate-900/60 flex items-center justify-center z-50 backdrop-blur-sm fade-in">
+        <div class="bg-white p-8 rounded-2xl shadow-2xl max-w-md w-full text-center relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-full h-2 bg-blue-500"></div>
+            <h2 class="text-2xl font-bold mb-2 text-slate-800">互動數據分佈</h2>
+            <p class="text-slate-500 mb-8 text-sm">請選擇您的身分以開始</p>
             
-            <div class="space-y-6">
-                <!-- 老師區塊 -->
-                <div class="bg-blue-50 p-4 rounded-xl border border-blue-100">
-                    <button onclick="startAsTeacher()" class="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition shadow-sm">
-                        👨‍🏫 身分：教師 (建立教室)
-                    </button>
-                    <p class="text-xs text-blue-600 mt-2">建立一個新房間，並擁有控制權限</p>
-                </div>
-
-                <div class="relative flex items-center">
+            <!-- Step 1: Role Selection -->
+            <div id="role-selection" class="space-y-4">
+                <button onclick="window.startTeacher()" class="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition shadow-sm flex items-center justify-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>
+                    建立教室 (Teacher)
+                </button>
+                <div class="relative flex items-center py-2">
                     <div class="flex-grow border-t border-slate-200"></div>
-                    <span class="flex-shrink-0 mx-4 text-slate-400 text-sm">或者</span>
+                    <span class="flex-shrink-0 mx-4 text-slate-400 text-sm">或</span>
                     <div class="flex-grow border-t border-slate-200"></div>
                 </div>
-
-                <!-- 學生區塊 -->
-                <div class="bg-emerald-50 p-4 rounded-xl border border-emerald-100">
-                    <input type="text" id="room-input" placeholder="輸入5碼教室代碼" class="w-full px-4 py-3 rounded-xl border border-emerald-200 focus:ring-2 focus:ring-emerald-500 mb-3 uppercase text-center font-bold tracking-widest outline-none bg-white">
-                    <button onclick="joinAsStudent()" class="w-full bg-emerald-600 text-white font-bold py-3 rounded-xl hover:bg-emerald-700 transition shadow-sm">
-                        🧑‍🎓 身分：學生 (加入教室)
-                    </button>
-                    <p id="error-msg" class="text-xs text-red-500 mt-2 hidden font-bold">找不到該教室，請確認代碼！</p>
+                <div class="flex gap-2">
+                    <input id="join-room-id" type="text" placeholder="輸入教室代碼" class="border border-slate-300 p-3 rounded-xl w-full focus:ring-2 focus:ring-blue-500 outline-none uppercase font-mono text-center tracking-widest text-lg">
                 </div>
+                <button onclick="window.prepareJoin()" class="w-full py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition shadow-sm">
+                    加入教室 (Student)
+                </button>
+            </div>
+
+            <!-- Step 2: Student Name Entry -->
+            <div id="student-name-entry" class="hidden space-y-4">
+                <p class="text-sm font-semibold text-blue-600 mb-2" id="join-room-display">Joining Room: ---</p>
+                <input id="student-name" type="text" placeholder="輸入你的名字" class="border border-slate-300 p-3 rounded-xl w-full focus:ring-2 focus:ring-blue-500 outline-none text-center text-lg">
+                <button onclick="window.confirmJoin()" class="w-full py-3 px-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-bold transition shadow-sm">
+                    進入教室
+                </button>
+                <button onclick="window.backToRoles()" class="text-sm text-slate-500 hover:text-slate-700 mt-2 block w-full">返回</button>
+            </div>
+            
+            <div id="loading-indicator" class="hidden py-8">
+                <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto"></div>
+                <p class="text-sm text-slate-500 mt-4">連線中...</p>
             </div>
         </div>
     </div>
 
-    <!-- 主程式畫面 -->
+    <!-- Main Content -->
     <div class="max-w-6xl mx-auto space-y-4">
+        
         <!-- Header & Toolbar -->
         <header class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-center gap-4">
-            <div class="flex items-center gap-4">
-                <h1 class="text-xl font-bold text-slate-900">互動數據分佈模擬器</h1>
-                <!-- 房間資訊標籤 -->
-                <div id="room-info" class="hidden flex items-center bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200">
-                    <div class="w-2 h-2 rounded-full bg-green-500 animate-pulse mr-2"></div>
-                    <span class="text-sm text-slate-600 font-bold">Room: <span id="display-room-id" class="text-indigo-600 tracking-wider"></span></span>
-                    <span id="role-badge" class="ml-2 text-xs text-white px-2 py-0.5 rounded-full"></span>
-                </div>
+            <div>
+                <h1 class="text-xl font-bold text-slate-900 flex items-center gap-2">
+                    互動數據分佈模擬器
+                    <span id="role-badge" class="hidden px-2 py-0.5 text-[10px] rounded-full uppercase tracking-wider font-bold"></span>
+                </h1>
             </div>
             
             <div class="flex flex-wrap gap-2 justify-center">
-                <button id="btn-toggle-data" onclick="togglePanel('data')" class="px-4 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2 border border-slate-200 hover:bg-slate-50 text-slate-600 bg-white">
+                <button id="btn-toggle-data" onclick="window.togglePanel('data')" class="px-4 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2 border border-slate-200 hover:bg-slate-50 text-slate-600 bg-white">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
                     輸入數據
                 </button>
-                <button id="btn-toggle-sliders" onclick="cycleSliderMode()" class="px-4 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2 border border-blue-200 bg-blue-50 text-blue-700">
+                <button id="btn-toggle-sliders" onclick="window.cycleSliderMode()" class="px-4 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2 border border-blue-200 bg-blue-50 text-blue-700">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
                     <span id="txt-toggle-sliders">調整參數 (全部)</span>
                 </button>
-                <button id="btn-toggle-stats" onclick="toggleStats()" class="px-4 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2 border border-purple-200 bg-purple-50 text-purple-700">
+                <button id="btn-toggle-stats" onclick="window.toggleStats()" class="px-4 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2 border border-purple-200 bg-purple-50 text-purple-700">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
                     顯示統計
                 </button>
                 <div class="w-px h-8 bg-slate-300 mx-2 hidden md:block"></div>
-                <button id="btn-reset" onclick="resetAll()" class="px-4 py-2 bg-red-50 text-red-600 border border-red-100 rounded-lg hover:bg-red-100 transition text-sm font-semibold">
+                <button onclick="window.resetAll()" class="px-4 py-2 bg-red-50 text-red-600 border border-red-100 rounded-lg hover:bg-red-100 transition text-sm font-semibold">
                     重置所有
                 </button>
             </div>
         </header>
 
+        <!-- Teacher Dashboard Panel (Only visible to teacher) -->
+        <div id="panel-teacher" class="hidden bg-white p-4 rounded-xl shadow-sm border border-blue-300">
+            <div class="flex flex-col md:flex-row gap-6 items-stretch">
+                <!-- QR Code Section -->
+                <div class="flex flex-col items-center justify-center p-4 bg-blue-50 rounded-xl border border-blue-100 md:w-1/3">
+                    <h3 class="text-sm font-bold text-blue-800 uppercase tracking-wide mb-2">邀請學生加入</h3>
+                    <div id="qrcode-container" class="bg-white p-2 rounded-lg shadow-sm mb-3"></div>
+                    <div class="text-center">
+                        <p class="text-xs text-slate-500 mb-1">教室代碼</p>
+                        <p class="text-3xl font-mono font-bold text-slate-800 tracking-widest" id="display-room-code">----</p>
+                    </div>
+                </div>
+                <!-- Student Roster Section -->
+                <div class="flex-1 flex flex-col">
+                    <div class="flex justify-between items-center mb-2">
+                        <h3 class="text-sm font-bold text-slate-700 flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                            在線學生 (<span id="student-count">0</span>)
+                        </h3>
+                        <span class="text-xs text-slate-400">勾選以顯示學生的疊加數據</span>
+                    </div>
+                    <div class="bg-slate-50 border border-slate-200 rounded-lg p-2 flex-1 max-h-[160px] overflow-y-auto custom-scroll">
+                        <div id="student-list" class="grid grid-cols-2 lg:grid-cols-3 gap-2">
+                            <p class="text-sm text-slate-400 p-2 col-span-full text-center italic">等待學生加入...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Data Input Panel (Hidden by default) -->
         <div id="panel-data" class="hidden bg-white p-4 rounded-xl shadow-sm border border-slate-200">
             <h2 class="text-sm font-bold text-slate-500 uppercase tracking-wide mb-4 flex items-center gap-2">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-                輸入數據 (Data Input)
+                輸入數據 (Data Input - Teacher Only)
             </h2>
             <div id="data-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <!-- Data Inputs Injected Here -->
@@ -164,15 +175,17 @@
         </div>
     </div>
 
-    <!-- Firebase SDK (ES Module) -->
+    <!-- Firebase Logic as Module -->
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // 用戶提供的 Firebase configuration
-        const firebaseConfig = {
+        // --- User Provided Firebase Config ---
+        const userFirebaseConfig = {
             apiKey: "AIzaSyAR7Tjp8k8dHybMWpmx-MfaV9Ziyl3eADc",
             authDomain: "fwft-quickchat.firebaseapp.com",
+            databaseURL: "https://fwft-quickchat-default-rtdb.firebaseio.com",
             projectId: "fwft-quickchat",
             storageBucket: "fwft-quickchat.firebasestorage.app",
             messagingSenderId: "27728669602",
@@ -180,18 +193,16 @@
             measurementId: "G-ZRRG2BM00F"
         };
 
+        // Environment safety: Use canvas config if present to ensure rules pass, otherwise fallback to user config.
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : userFirebaseConfig;
+        const rootAppId = typeof __app_id !== 'undefined' ? __app_id : 'fwft-quickchat';
+        
         const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
         const db = getFirestore(app);
 
-        // --- 全局連線狀態 ---
-        let currentRole = null; // 'teacher' | 'student'
-        let currentRoomId = null;
-        let syncTimeout = null;
-
-        // --- Configuration & State ---
+        // --- App Configuration & State ---
         const TOTAL_GROUPS = 4;
-        
-        // Mock Data Configuration
         const MOCK_DATA = [
             "3.5, 4, 5, 5.2, 6, 4.8, 5.5, 7.5, 3, 5, 4.2",                 // Class A
             "7.4, 7.5, 7.8, 8.0, 8.2, 7.5, 6.8, 7.6, 7.0, 7.9, 7.1, 7.6", // Class B
@@ -199,7 +210,6 @@
             "3.5, 4.0, 8.5, 6.0, 5.0, 6.5, 5.0, 2.5, 8.0, 5.2, 6.8"       // Class D
         ];
         
-        // UI Colors
         const THEME = [
             { main: 'text-blue-600', border: 'border-blue-500', bg: 'bg-blue-50', hex: '#2563eb' },
             { main: 'text-emerald-600', border: 'border-emerald-500', bg: 'bg-emerald-50', hex: '#059669' },
@@ -207,7 +217,11 @@
             { main: 'text-violet-600', border: 'border-violet-500', bg: 'bg-violet-50', hex: '#7c3aed' }
         ];
 
-        let state = Array.from({ length: TOTAL_GROUPS }, (_, i) => ({
+        // Unique colors for ghost overlapping
+        const GHOST_COLORS = ['#ef4444', '#f97316', '#84cc16', '#06b6d4', '#ec4899', '#8b5cf6', '#64748b'];
+
+        // Global State
+        let localState = Array.from({ length: TOTAL_GROUPS }, (_, i) => ({
             id: i + 1,
             label: `Class ${String.fromCharCode(65 + i)}`, 
             dataStr: MOCK_DATA[i] || "", 
@@ -215,112 +229,263 @@
             scale: 1.0
         }));
 
-        let panelVisibility = { data: false }; // 預設隱藏數據面板
-        let sliderMode = 2; // 預設開啟全部參數調整
-        let showStats = true; // 預設開啟統計顯示
+        let panelVisibility = { data: true };
+        let sliderMode = 0; // 0: Hidden, 1: Show Mean (Shift), 2: Show Mean & SD (Shift & Scale)
+        let showStats = false;
 
-        // --- 核心初始化 ---
-        function initUI() {
+        // Multiplayer State
+        let currentRole = null; // 'teacher' or 'student'
+        let currentRoomId = null;
+        let currentUser = null;
+        let studentsData = {}; // Maps uid -> { name, state: [], color, visible }
+        let unsubscribeStudents = null;
+        let syncTimeout = null;
+
+        // Ensure functions are globally accessible for inline HTML handlers
+        window.togglePanel = togglePanel;
+        window.cycleSliderMode = cycleSliderMode;
+        window.toggleStats = toggleStats;
+        window.resetAll = resetAll;
+        window.updateState = updateState;
+        window.startTeacher = startTeacher;
+        window.prepareJoin = prepareJoin;
+        window.confirmJoin = confirmJoin;
+        window.backToRoles = backToRoles;
+        window.toggleStudentGhost = toggleStudentGhost;
+
+        // --- Initialization ---
+        async function init() {
             renderDataInputs();
             renderSliders();
             renderCanvases();
             updatePanelUI();
-            updateStatsButtonUI();
             
-            // Initial Draw
-            state.forEach((_, idx) => drawGroup(idx));
-            
-            // Handle window resize
+            // Handle URL Parameters for auto-join
+            const urlParams = new URLSearchParams(window.location.search);
+            const roomParam = urlParams.get('room');
+            if (roomParam) {
+                document.getElementById('join-room-id').value = roomParam.toUpperCase();
+                prepareJoin();
+            }
+
+            // Window resize handler
             window.addEventListener('resize', () => {
-                state.forEach((_, idx) => drawGroup(idx));
-            });
-        }
-
-        // --- Firebase 連線邏輯 ---
-
-        // 綁定全域函式供 HTML 呼叫
-        window.startAsTeacher = async function() {
-            currentRole = 'teacher';
-            // 產生 5 碼隨機大寫字母數字
-            currentRoomId = Math.random().toString(36).substring(2, 7).toUpperCase();
-            
-            // 初始化 Firebase 文件
-            await setDoc(doc(db, "rooms", currentRoomId), {
-                groups: state,
-                ui: { sliderMode, showStats }
+                localState.forEach((_, idx) => drawGroup(idx));
             });
 
-            setupClassroomUI('bg-blue-600', '老師');
-            initUI();
-        };
+            // Initial Draw
+            localState.forEach((_, idx) => drawGroup(idx));
 
-        window.joinAsStudent = function() {
-            const input = document.getElementById('room-input').value.trim().toUpperCase();
-            if (!input) return;
-            
-            currentRole = 'student';
-            currentRoomId = input;
-            
-            // 監聽 Firebase 該房間資料
-            const unsubscribe = onSnapshot(doc(db, "rooms", currentRoomId), (docSnap) => {
-                if (docSnap.exists()) {
-                    const data = docSnap.data();
-                    state = data.groups;
-                    sliderMode = data.ui.sliderMode;
-                    showStats = data.ui.showStats;
-                    
-                    // 初次登入成功時設定 UI
-                    if (!document.getElementById('role-overlay').classList.contains('hidden')) {
-                        setupClassroomUI('bg-emerald-600', '學生 (唯讀)');
-                        // 學生端隱藏重置按鈕
-                        document.getElementById('btn-reset').style.display = 'none';
-                    }
-                    
-                    // 根據伺服器資料重繪畫面
-                    initUI(); 
+            // Authenticate Anonymously before any Firestore actions (RULE 3)
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
                 } else {
-                    document.getElementById('error-msg').classList.remove('hidden');
+                    await signInAnonymously(auth);
                 }
+            } catch (err) {
+                console.error("Auth error:", err);
+            }
+
+            onAuthStateChanged(auth, (user) => {
+                currentUser = user;
             });
-        };
-
-        // Firebase 狀態推送 (防抖處理)
-        function syncToFirebase() {
-            if (currentRole !== 'teacher' || !currentRoomId) return;
-            clearTimeout(syncTimeout);
-            syncTimeout = setTimeout(() => {
-                setDoc(doc(db, "rooms", currentRoomId), {
-                    groups: state,
-                    ui: { sliderMode, showStats }
-                }, { merge: true });
-            }, 100);
         }
 
-        function setupClassroomUI(badgeColor, badgeText) {
-            document.getElementById('role-overlay').classList.add('hidden');
-            document.getElementById('room-info').classList.remove('hidden');
-            document.getElementById('display-room-id').innerText = currentRoomId;
-            const badge = document.getElementById('role-badge');
-            badge.innerText = badgeText;
-            badge.className = `ml-2 text-xs text-white px-2 py-0.5 rounded-full ${badgeColor}`;
+        // --- Multiplayer Logic ---
+
+        async function startTeacher() {
+            if (!currentUser) return;
+            showLoading(true);
+            currentRole = 'teacher';
+            
+            // Generate Random 4-letter room code
+            currentRoomId = Math.random().toString(36).substring(2, 6).toUpperCase();
+            
+            try {
+                // Register room in Firebase (using strict Canvas paths RULE 1)
+                const roomRef = doc(db, 'artifacts', rootAppId, 'public', 'data', 'rooms', currentRoomId);
+                await setDoc(roomRef, { created: Date.now(), hostId: currentUser.uid });
+
+                // Update UI
+                document.getElementById('setup-modal').classList.add('hidden');
+                document.getElementById('panel-teacher').classList.remove('hidden');
+                document.getElementById('display-room-code').textContent = currentRoomId;
+                
+                // Set Badge
+                const badge = document.getElementById('role-badge');
+                badge.textContent = "Teacher";
+                badge.className = "px-2 py-0.5 text-[10px] rounded-full uppercase tracking-wider font-bold bg-blue-100 text-blue-700 inline-block";
+
+                // Generate QR Code linking to this page + room param
+                const joinUrl = new URL(window.location.href);
+                joinUrl.searchParams.set('room', currentRoomId);
+                new QRCode(document.getElementById('qrcode-container'), {
+                    text: joinUrl.toString(),
+                    width: 100, height: 100, colorDark: "#1e293b", colorLight: "#ffffff"
+                });
+
+                // Listen for students joining (RULE 1 & RULE 2)
+                const studentsRef = collection(db, 'artifacts', rootAppId, 'public', 'data', `students_${currentRoomId}`);
+                unsubscribeStudents = onSnapshot(studentsRef, (snapshot) => {
+                    snapshot.docChanges().forEach((change) => {
+                        const sId = change.doc.id;
+                        const data = change.doc.data();
+                        if (change.type === 'added') {
+                            const colorIndex = Object.keys(studentsData).length;
+                            studentsData[sId] = {
+                                name: data.name,
+                                state: data.state || localState.map(s => ({shift: 0, scale: 1})),
+                                color: GHOST_COLORS[colorIndex % GHOST_COLORS.length],
+                                visible: false // Initially hidden to not clutter
+                            };
+                        } else if (change.type === 'modified') {
+                            if (studentsData[sId]) {
+                                studentsData[sId].state = data.state;
+                            }
+                        } else if (change.type === 'removed') {
+                            delete studentsData[sId];
+                        }
+                    });
+                    renderStudentList();
+                    // Redraw canvases to reflect new ghost data
+                    localState.forEach((_, idx) => drawGroup(idx));
+                }, (error) => {
+                    console.error("Error listening to students:", error);
+                });
+
+            } catch (err) {
+                console.error("Failed to create room", err);
+                alert("無法建立教室"); // fallback alert if totally fails
+            }
+            showLoading(false);
         }
 
-        // --- DOM Generation ---
+        function prepareJoin() {
+            const roomIdInput = document.getElementById('join-room-id').value.trim().toUpperCase();
+            if (roomIdInput.length === 0) return;
+            currentRoomId = roomIdInput;
+            
+            document.getElementById('role-selection').classList.add('hidden');
+            document.getElementById('student-name-entry').classList.remove('hidden');
+            document.getElementById('join-room-display').textContent = `Joining Room: ${currentRoomId}`;
+        }
+
+        function backToRoles() {
+            document.getElementById('role-selection').classList.remove('hidden');
+            document.getElementById('student-name-entry').classList.add('hidden');
+            currentRoomId = null;
+        }
+
+        async function confirmJoin() {
+            const name = document.getElementById('student-name').value.trim() || "匿名學生";
+            if (!currentUser || !currentRoomId) return;
+            
+            showLoading(true);
+            currentRole = 'student';
+
+            try {
+                // Initial save of student presence
+                await saveStudentStateToFirebase(name);
+
+                // Update UI
+                document.getElementById('setup-modal').classList.add('hidden');
+                
+                // Hide data input button/panel for students
+                document.getElementById('btn-toggle-data').classList.add('hidden');
+                panelVisibility.data = false;
+                updatePanelUI();
+                
+                // Set Badge
+                const badge = document.getElementById('role-badge');
+                badge.textContent = `Student: ${name}`;
+                badge.className = "px-2 py-0.5 text-[10px] rounded-full uppercase tracking-wider font-bold bg-emerald-100 text-emerald-700 inline-block";
+
+            } catch (error) {
+                console.error("Failed to join room", error);
+            }
+            showLoading(false);
+        }
+
+        async function saveStudentStateToFirebase(nameOverride = null) {
+            if (currentRole !== 'student' || !currentUser || !currentRoomId) return;
+            
+            const studentRef = doc(db, 'artifacts', rootAppId, 'public', 'data', `students_${currentRoomId}`, currentUser.uid);
+            
+            // Only send shift and scale to save bandwidth
+            const minimalState = localState.map(g => ({ shift: g.shift, scale: g.scale }));
+            
+            const payload = {
+                state: minimalState,
+                lastUpdated: Date.now()
+            };
+            if (nameOverride) payload.name = nameOverride;
+
+            try {
+                // Use setDoc with merge to preserve name if already set
+                await setDoc(studentRef, payload, { merge: true });
+            } catch (err) {
+                console.error("Sync error:", err);
+            }
+        }
+
+        // --- Teacher UI Functions ---
+        function renderStudentList() {
+            const container = document.getElementById('student-list');
+            const studentIds = Object.keys(studentsData);
+            document.getElementById('student-count').textContent = studentIds.length;
+            
+            if (studentIds.length === 0) {
+                container.innerHTML = `<p class="text-sm text-slate-400 p-2 col-span-full text-center italic">等待學生加入...</p>`;
+                return;
+            }
+
+            container.innerHTML = studentIds.map(uid => {
+                const s = studentsData[uid];
+                return `
+                    <label class="flex items-center gap-2 p-2 rounded border cursor-pointer hover:bg-white transition" style="border-color: ${s.visible ? s.color : '#e2e8f0'}; background-color: ${s.visible ? s.color+'10' : 'transparent'}">
+                        <input type="checkbox" ${s.visible ? 'checked' : ''} onchange="window.toggleStudentGhost('${uid}', this.checked)" class="rounded text-blue-600 focus:ring-blue-500">
+                        <div class="w-3 h-3 rounded-full flex-shrink-0" style="background-color: ${s.color}"></div>
+                        <span class="text-sm font-medium truncate flex-1 ${s.visible ? 'text-slate-900' : 'text-slate-600'}">${s.name}</span>
+                    </label>
+                `;
+            }).join('');
+        }
+
+        function toggleStudentGhost(uid, isVisible) {
+            if (studentsData[uid]) {
+                studentsData[uid].visible = isVisible;
+                renderStudentList(); // Re-render to update box styles
+                localState.forEach((_, idx) => drawGroup(idx)); // Redraw canvases
+            }
+        }
+
+        // --- Core UI & DOM ---
+        function showLoading(show) {
+            const ld = document.getElementById('loading-indicator');
+            const sel = document.getElementById('role-selection');
+            const ne = document.getElementById('student-name-entry');
+            if (show) {
+                ld.classList.remove('hidden');
+                sel.classList.add('hidden');
+                ne.classList.add('hidden');
+            } else {
+                ld.classList.add('hidden');
+            }
+        }
 
         function renderDataInputs() {
             const container = document.getElementById('data-grid');
-            const disabledAttr = currentRole === 'student' ? 'disabled' : '';
-            
-            container.innerHTML = state.map((group, i) => `
+            container.innerHTML = localState.map((group, i) => `
                 <div class="flex flex-col gap-2 p-3 rounded border border-l-4 ${THEME[i].bg} border-l-${THEME[i].hex} border-slate-200" style="border-left-color: ${THEME[i].hex}">
                     <div class="flex items-center justify-between">
                          <span class="text-xs font-bold ${THEME[i].main}">GROUP ${i+1}</span>
-                         <input type="text" value="${group.label}" ${disabledAttr}
-                            oninput="updateState(${i}, 'label', this.value)"
+                         <input type="text" value="${group.label}" 
+                            oninput="window.updateState(${i}, 'label', this.value)"
                             class="text-xs border-b border-transparent hover:border-slate-300 focus:border-blue-500 outline-none bg-transparent text-right w-24 text-slate-700 font-medium" placeholder="Label">
                     </div>
-                    <textarea ${disabledAttr}
-                        oninput="updateState(${i}, 'dataStr', this.value)"
+                    <textarea 
+                        oninput="window.updateState(${i}, 'dataStr', this.value)"
                         class="w-full h-24 px-3 py-2 border border-slate-300 rounded focus:ring-1 focus:ring-blue-500 outline-none text-xs font-mono resize-none bg-white" 
                         placeholder="3, 4.5, 6">${group.dataStr}</textarea>
                 </div>
@@ -329,38 +494,32 @@
 
         function renderSliders() {
             const container = document.getElementById('slider-grid');
-            const disabledAttr = currentRole === 'student' ? 'disabled' : '';
-            
-            container.innerHTML = state.map((group, i) => `
+            container.innerHTML = localState.map((group, i) => `
                 <div class="p-3 rounded border border-l-4 border-slate-200 bg-slate-50" style="border-left-color: ${THEME[i].hex}">
                     <div class="flex justify-between items-center mb-2">
                         <span class="font-bold text-sm text-slate-700" id="slider-label-${i}">${group.label}</span>
                         <span class="w-2 h-2 rounded-full" style="background: ${THEME[i].hex}"></span>
                     </div>
                     
-                    <!-- Shift Slider (Mean) - Always shown in Mode 1 and 2 -->
                     <div class="mb-3">
                         <div class="flex justify-between text-xs mb-1">
                             <span class="text-slate-500">Shift (Mean)</span>
-                            <span class="font-mono font-bold text-slate-700" id="disp-shift-${i}">${parseFloat(group.shift).toFixed(1)}</span>
+                            <span class="font-mono font-bold text-slate-700" id="disp-shift-${i}">${group.shift.toFixed(1)}</span>
                         </div>
-                        <input type="range" min="-5" max="5" step="0.1" value="${group.shift}" ${disabledAttr}
-                            class="w-full ${THEME[i].main}"
-                            style="color: ${THEME[i].hex}"
-                            oninput="updateState(${i}, 'shift', this.value)">
+                        <input type="range" min="-5" max="5" step="0.1" value="${group.shift}" 
+                            class="w-full ${THEME[i].main}" style="color: ${THEME[i].hex}"
+                            oninput="window.updateState(${i}, 'shift', this.value)">
                     </div>
 
-                    <!-- Scale Slider (SD) - Only shown in Mode 2 -->
                     ${sliderMode === 2 ? `
-                    <div class="animate-fade-in">
+                    <div class="fade-in">
                         <div class="flex justify-between text-xs mb-1">
                             <span class="text-slate-500">Scale (SD)</span>
-                            <span class="font-mono font-bold text-slate-700" id="disp-scale-${i}">${parseFloat(group.scale).toFixed(1)}</span>
+                            <span class="font-mono font-bold text-slate-700" id="disp-scale-${i}">${group.scale.toFixed(1)}</span>
                         </div>
-                        <input type="range" min="0.1" max="3" step="0.1" value="${group.scale}" ${disabledAttr}
-                            class="w-full"
-                            style="color: ${THEME[i].hex}"
-                            oninput="updateState(${i}, 'scale', this.value)">
+                        <input type="range" min="0.1" max="3" step="0.1" value="${group.scale}" 
+                            class="w-full" style="color: ${THEME[i].hex}"
+                            oninput="window.updateState(${i}, 'scale', this.value)">
                     </div>
                     ` : ''}
                 </div>
@@ -369,7 +528,7 @@
 
         function renderCanvases() {
             const container = document.getElementById('viz-container');
-            container.innerHTML = state.map((group, i) => `
+            container.innerHTML = localState.map((group, i) => `
                 <div class="relative w-full p-2 hover:bg-slate-50 transition-colors">
                     <div class="absolute left-2 top-2 z-10 flex flex-col">
                         <span class="text-xs font-bold px-2 py-0.5 rounded text-white shadow-sm" style="background: ${THEME[i].hex}" id="viz-label-${i}">
@@ -386,40 +545,32 @@
             `).join('');
         }
 
-        // --- Logic & Updates ---
+        // --- Actions ---
 
-        window.togglePanel = function(panelName) {
-            // 學生也可以開關本地的數據面板，但不影響伺服器
-            if (panelName === 'data') {
+        function togglePanel(panelName) {
+            if (panelName === 'data' && currentRole !== 'student') {
                 panelVisibility.data = !panelVisibility.data;
                 updatePanelUI();
             }
-        };
+        }
 
-        window.cycleSliderMode = function() {
-            if (currentRole === 'student') return; // 學生無法更改模式
+        function cycleSliderMode() {
             sliderMode = (sliderMode + 1) % 3;
             renderSliders();
             updatePanelUI();
             updateSliderButtonUI();
-            syncToFirebase(); // 同步模式到 Firebase
-        };
+        }
 
-        window.toggleStats = function() {
-            if (currentRole === 'student') return;
+        function toggleStats() {
             showStats = !showStats;
             updateStatsButtonUI();
-            state.forEach((_, idx) => drawGroup(idx));
-            syncToFirebase();
-        };
+            localState.forEach((_, idx) => drawGroup(idx));
+        }
 
         function updateSliderButtonUI() {
             const btn = document.getElementById('btn-toggle-sliders');
             const txt = document.getElementById('txt-toggle-sliders');
-            
             btn.className = "px-4 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2 border";
-            if (currentRole === 'student') btn.classList.add('opacity-50', 'cursor-not-allowed');
-            
             if (sliderMode === 0) {
                 btn.classList.add('bg-white', 'text-slate-600', 'border-slate-200');
                 txt.textContent = "調整參數 (隱藏)";
@@ -434,8 +585,6 @@
 
         function updateStatsButtonUI() {
             const btn = document.getElementById('btn-toggle-stats');
-            if (currentRole === 'student') btn.classList.add('opacity-50', 'cursor-not-allowed');
-
             if (showStats) {
                 btn.classList.remove('bg-white', 'text-slate-600', 'border-slate-200');
                 btn.classList.add('bg-purple-50', 'text-purple-700', 'border-purple-200');
@@ -459,85 +608,85 @@
             }
 
             const sliderPanel = document.getElementById('panel-sliders');
-            if (sliderMode > 0) {
-                sliderPanel.classList.remove('hidden');
-            } else {
-                sliderPanel.classList.add('hidden');
-            }
+            if (sliderMode > 0) sliderPanel.classList.remove('hidden');
+            else sliderPanel.classList.add('hidden');
+            
             updateSliderButtonUI();
         }
 
-        window.updateState = function(index, field, value) {
-            if (currentRole === 'student') return; // 防呆：學生無法修改
-
+        function updateState(index, field, value) {
             if (field === 'shift' || field === 'scale') {
-                state[index][field] = parseFloat(value);
+                localState[index][field] = parseFloat(value);
                 const disp = document.getElementById(`disp-${field}-${index}`);
-                if (disp) disp.textContent = state[index][field].toFixed(1);
+                if (disp) disp.textContent = localState[index][field].toFixed(1);
+                
+                // Realtime Multiplayer Sync (Debounced to save bandwidth)
+                if (currentRole === 'student') {
+                    clearTimeout(syncTimeout);
+                    syncTimeout = setTimeout(() => saveStudentStateToFirebase(), 300);
+                }
             } else if (field === 'label') {
-                state[index][field] = value;
+                localState[index][field] = value;
                 const sliderLabel = document.getElementById(`slider-label-${index}`);
                 if (sliderLabel) sliderLabel.textContent = value;
                 const vizLabel = document.getElementById(`viz-label-${index}`);
                 if (vizLabel) vizLabel.textContent = value;
             } else {
-                state[index][field] = value;
+                localState[index][field] = value;
             }
-            
             drawGroup(index);
-            syncToFirebase(); // 同步到伺服器
-        };
+        }
 
-        window.resetAll = function() {
-            if (currentRole === 'student') return;
-
-            state.forEach((g, i) => {
+        function resetAll() {
+            localState.forEach((g, i) => {
                 g.label = `Class ${String.fromCharCode(65 + i)}`;
                 g.dataStr = MOCK_DATA[i] || "";
                 g.shift = 0;
                 g.scale = 1.0;
             });
-
             renderDataInputs();
             renderSliders();
             renderCanvases();
-            state.forEach((_, idx) => drawGroup(idx));
-            syncToFirebase();
-        };
+            localState.forEach((_, idx) => drawGroup(idx));
+            
+            if (currentRole === 'student') saveStudentStateToFirebase();
+        }
 
-        // --- Stats Logic ---
+        // --- Math & Stats ---
         function parseData(str) {
             if (!str.trim()) return [];
             const raw = str.split(/[\n, \t]+/).filter(s => s.trim() !== '');
             return raw.map(Number).filter(n => !isNaN(n));
         }
-
         function calculateMean(arr) {
             if (arr.length === 0) return 0;
-            const sum = arr.reduce((a, b) => a + b, 0);
-            return sum / arr.length;
+            return arr.reduce((a, b) => a + b, 0) / arr.length;
         }
-
         function calculateSD(arr, mean) {
             if (arr.length === 0) return 0;
             const variance = arr.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) / arr.length;
             return Math.sqrt(variance);
         }
 
-        // --- Drawing Logic ---
+        // --- Canvas Drawing Logic ---
+        function hexToRgba(hex, alpha) {
+            let r = parseInt(hex.slice(1, 3), 16),
+                g = parseInt(hex.slice(3, 5), 16),
+                b = parseInt(hex.slice(5, 7), 16);
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        }
+
         function drawGroup(index) {
             const canvas = document.getElementById(`canvas-${index}`);
             if (!canvas) return;
-
             const ctx = canvas.getContext('2d');
-            const currentState = state[index];
+            const currentState = localState[index];
             
             const dpr = window.devicePixelRatio || 1;
             const rect = canvas.getBoundingClientRect();
             canvas.width = rect.width * dpr;
             canvas.height = rect.height * dpr;
             ctx.scale(dpr, dpr);
-
             const width = rect.width;
             const height = rect.height;
 
@@ -549,7 +698,7 @@
             const axisY = height - marginBottom;
             const plotWidth = width - (marginX * 2);
 
-            // Draw Axis Line
+            // Background / Axis
             ctx.beginPath();
             ctx.moveTo(marginX, axisY);
             ctx.lineTo(width - marginX, axisY);
@@ -557,12 +706,10 @@
             ctx.lineWidth = 2;
             ctx.stroke();
 
-            // Draw Ticks
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
             ctx.fillStyle = '#94a3b8';
             ctx.font = '10px sans-serif';
-
             for (let i = 0; i <= 10; i++) {
                 const x = marginX + (i / 10) * plotWidth;
                 ctx.beginPath();
@@ -572,111 +719,112 @@
                 ctx.fillText(i, x, axisY + 6);
             }
 
-            // Process Data
             const rawData = parseData(currentState.dataStr);
-            const statsEl = document.getElementById(`viz-stats-${index}`);
-            
-            if (rawData.length === 0) {
-                if(statsEl) statsEl.textContent = "No Data";
-                return;
-            }
-
             const meanOrig = calculateMean(rawData);
 
-            // Transform
-            const transformedData = rawData.map(val => {
-                return meanOrig + (val - meanOrig) / currentState.scale + currentState.shift;
-            });
-
-            // Update Stats Label
-            const newMean = calculateMean(transformedData);
-            const newSD = calculateSD(transformedData, newMean);
-            
-            if(statsEl) {
-                if (showStats) {
-                    statsEl.textContent = `μ: ${newMean.toFixed(2)}  σ: ${newSD.toFixed(2)}  (n=${transformedData.length})`;
-                } else {
-                    statsEl.textContent = "";
-                }
-            }
-
-            // Binning logic
-            const bins = {};
-            const pointsToDraw = [];
-            
-            transformedData.forEach(val => {
-                const binKey = Math.round(val * 10) / 10; 
-                if (!bins[binKey]) bins[binKey] = 0;
-                const stackHeight = bins[binKey];
-                bins[binKey]++;
-                pointsToDraw.push({ val: val, stackIndex: stackHeight });
-            });
-
-            // Draw Dots
-            const dotRadius = 4.5;
-            const stackGap = 1;
-
-            pointsToDraw.forEach(pt => {
-                let normalizedX = Math.max(0, Math.min(10, pt.val));
-                const cx = marginX + (normalizedX / 10) * plotWidth;
-                const cy = axisY - 8 - (pt.stackIndex * (dotRadius * 2 + stackGap));
-
-                if (cy < marginTop) return; 
-
-                ctx.beginPath();
-                ctx.arc(cx, cy, dotRadius, 0, Math.PI * 2);
-                ctx.fillStyle = THEME[index].hex;
-                ctx.fill();
-                ctx.strokeStyle = '#fff';
-                ctx.lineWidth = 1;
-                ctx.stroke();
-            });
-
-            // Draw Mean Line & SD Bracket
-            if (showStats && newMean >= 0 && newMean <= 10) {
-                const meanX = marginX + (newMean / 10) * plotWidth;
+            // --- Draw Function for a specific dataset ---
+            const drawDataPoints = (data, shift, scale, colorHex, isGhost = false) => {
+                if (data.length === 0) return;
                 
-                // 1. Mean Line
-                ctx.beginPath();
-                ctx.moveTo(meanX, axisY);
-                ctx.lineTo(meanX, marginTop);
-                ctx.setLineDash([4, 4]);
-                ctx.strokeStyle = THEME[index].hex;
-                ctx.lineWidth = 2;
-                ctx.stroke();
-                ctx.setLineDash([]); 
+                const transformedData = data.map(val => meanOrig + (val - meanOrig) / scale + shift);
+                const tMean = calculateMean(transformedData);
+                const tSD = calculateSD(transformedData, tMean);
 
-                // 2. SD Bracket (+/- 1 SD)
-                if (newSD > 0) {
-                    const leftSD = Math.max(0, Math.min(10, newMean - newSD));
-                    const rightSD = Math.max(0, Math.min(10, newMean + newSD));
-                    
-                    const leftX = marginX + (leftSD / 10) * plotWidth;
-                    const rightX = marginX + (rightSD / 10) * plotWidth;
-                    
-                    const bracketY = marginTop + 12; 
-                    const serifSize = 4;
+                // Stats Label Update (Only for local main state)
+                if (!isGhost) {
+                    const statsEl = document.getElementById(`viz-stats-${index}`);
+                    if(statsEl) {
+                        statsEl.textContent = showStats ? `μ: ${tMean.toFixed(2)}  σ: ${tSD.toFixed(2)}  (n=${transformedData.length})` : "";
+                    }
+                }
+
+                // Binning
+                const bins = {};
+                const pointsToDraw = [];
+                transformedData.forEach(val => {
+                    const binKey = Math.round(val * 10) / 10; 
+                    if (!bins[binKey]) bins[binKey] = 0;
+                    pointsToDraw.push({ val: val, stackIndex: bins[binKey]++ });
+                });
+
+                // Draw Dots
+                const dotRadius = isGhost ? 3.5 : 4.5;
+                const stackGap = 1;
+
+                pointsToDraw.forEach(pt => {
+                    let normalizedX = Math.max(0, Math.min(10, pt.val));
+                    const cx = marginX + (normalizedX / 10) * plotWidth;
+                    // Slightly offset ghost items vertically to see overlap better
+                    const offset = isGhost ? 2 : 0; 
+                    const cy = axisY - 8 - (pt.stackIndex * (dotRadius * 2 + stackGap)) - offset;
+                    if (cy < marginTop) return; 
 
                     ctx.beginPath();
-                    ctx.strokeStyle = THEME[index].hex;
-                    ctx.lineWidth = 1.5;
-
-                    // Horizontal Line
-                    ctx.moveTo(leftX, bracketY);
-                    ctx.lineTo(rightX, bracketY);
-
-                    // Left Serif
-                    ctx.moveTo(leftX, bracketY - serifSize);
-                    ctx.lineTo(leftX, bracketY + serifSize);
-
-                    // Right Serif
-                    ctx.moveTo(rightX, bracketY - serifSize);
-                    ctx.lineTo(rightX, bracketY + serifSize);
+                    ctx.arc(cx, cy, dotRadius, 0, Math.PI * 2);
                     
+                    if (isGhost) {
+                        ctx.fillStyle = hexToRgba(colorHex, 0.4);
+                        ctx.fill();
+                        ctx.strokeStyle = colorHex;
+                        ctx.lineWidth = 1;
+                        ctx.stroke();
+                    } else {
+                        ctx.fillStyle = colorHex;
+                        ctx.fill();
+                        ctx.strokeStyle = '#fff';
+                        ctx.lineWidth = 1;
+                        ctx.stroke();
+                    }
+                });
+
+                // Draw Mean & SD Line (Only if stats shown and not ghost, OR if ghost and we want to see it)
+                // For a cleaner look, ghosts only show dots. Main state shows lines if toggled.
+                if (!isGhost && showStats && tMean >= 0 && tMean <= 10) {
+                    const meanX = marginX + (tMean / 10) * plotWidth;
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(meanX, axisY);
+                    ctx.lineTo(meanX, marginTop);
+                    ctx.setLineDash([4, 4]);
+                    ctx.strokeStyle = colorHex;
+                    ctx.lineWidth = 2;
                     ctx.stroke();
+                    ctx.setLineDash([]); 
+
+                    if (tSD > 0) {
+                        const leftSD = Math.max(0, Math.min(10, tMean - tSD));
+                        const rightSD = Math.max(0, Math.min(10, tMean + tSD));
+                        const leftX = marginX + (leftSD / 10) * plotWidth;
+                        const rightX = marginX + (rightSD / 10) * plotWidth;
+                        const bracketY = marginTop + 12; 
+                        const serifSize = 4;
+
+                        ctx.beginPath();
+                        ctx.strokeStyle = colorHex;
+                        ctx.lineWidth = 1.5;
+                        ctx.moveTo(leftX, bracketY); ctx.lineTo(rightX, bracketY);
+                        ctx.moveTo(leftX, bracketY - serifSize); ctx.lineTo(leftX, bracketY + serifSize);
+                        ctx.moveTo(rightX, bracketY - serifSize); ctx.lineTo(rightX, bracketY + serifSize);
+                        ctx.stroke();
+                    }
                 }
+            };
+
+            // 1. Draw Teacher's Main State
+            drawDataPoints(rawData, currentState.shift, currentState.scale, THEME[index].hex, false);
+
+            // 2. Draw Visible Ghost States (if Teacher)
+            if (currentRole === 'teacher') {
+                Object.values(studentsData).forEach(student => {
+                    if (student.visible && student.state[index]) {
+                        drawDataPoints(rawData, student.state[index].shift, student.state[index].scale, student.color, true);
+                    }
+                });
             }
         }
+
+        // Run Init
+        init();
     </script>
 </body>
 </html>
