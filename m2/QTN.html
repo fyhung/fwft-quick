@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>互動數據分佈模擬器v510 (Multiplayer)</title>
+    <title>互動數據分佈模擬器v516 (Multiplayer)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- QR Code Library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -264,6 +264,23 @@
             }, 3500);
         }
 
+        // --- Loading UI Controller (with safe restore) ---
+        function showLoading(show, context = 'role') {
+            const ld = document.getElementById('loading-indicator');
+            const sel = document.getElementById('role-selection');
+            const ne = document.getElementById('student-name-entry');
+            if (show) {
+                ld.classList.remove('hidden');
+                sel.classList.add('hidden');
+                ne.classList.add('hidden');
+            } else {
+                ld.classList.add('hidden');
+                // Crucially: if an error happens, we restore the buttons so it's not a blank white box
+                if (context === 'role') sel.classList.remove('hidden');
+                if (context === 'name') ne.classList.remove('hidden');
+            }
+        }
+
         // --- Initialization ---
         async function init() {
             renderDataInputs();
@@ -284,17 +301,22 @@
 
             localState.forEach((_, idx) => drawGroup(idx));
 
+            // Force auth initialization and handle errors gracefully
             try {
+                let userCred;
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
+                    userCred = await signInWithCustomToken(auth, __initial_auth_token);
                 } else {
-                    await signInAnonymously(auth);
+                    userCred = await signInAnonymously(auth);
                 }
+                currentUser = userCred.user;
             } catch (err) {
-                console.error("Auth error:", err);
-                showError("身分驗證失敗，請重整網頁。");
+                console.warn("Auth initialization failed:", err);
+            } finally {
+                authInitialized = true;
             }
 
+            // Keep tracking in background
             onAuthStateChanged(auth, (user) => {
                 currentUser = user;
                 authInitialized = true;
@@ -304,7 +326,7 @@
         // --- Multiplayer Logic ---
 
         async function startTeacher() {
-            showLoading(true);
+            showLoading(true, 'role');
             
             // Wait up to 3 seconds for auth to initialize if it hasn't yet
             let retries = 0;
@@ -315,7 +337,7 @@
 
             if (!currentUser) {
                 showError("無法連線到伺服器 (Auth Failed)，請重整網頁。");
-                showLoading(false);
+                showLoading(false, 'role'); // Restore the UI buttons
                 return;
             }
 
@@ -324,8 +346,15 @@
             
             try {
                 const roomRef = doc(db, 'artifacts', rootAppId, 'public', 'data', 'rooms', currentRoomId);
-                await setDoc(roomRef, { created: Date.now(), hostId: currentUser.uid });
+                
+                // FORCE A TIMEOUT: If Firebase hangs, this will break out after 5 seconds instead of freezing
+                await Promise.race([
+                    setDoc(roomRef, { created: Date.now(), hostId: currentUser.uid }),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout saving room")), 5000))
+                ]);
 
+                // Success! Transition UI
+                showLoading(false, 'none'); // Just hide spinner, parent modal hides next
                 document.getElementById('setup-modal').classList.add('hidden');
                 document.getElementById('panel-teacher').classList.remove('hidden');
                 document.getElementById('display-room-code').textContent = currentRoomId;
@@ -338,14 +367,19 @@
                 const baseUrl = window.location.href.split('?')[0];
                 const joinUrl = baseUrl === 'about:srcdoc' ? window.location.origin + '?room=' + currentRoomId : baseUrl + '?room=' + currentRoomId;
                 
-                if (typeof QRCode !== 'undefined') {
-                    document.getElementById('qrcode-container').innerHTML = '';
-                    new QRCode(document.getElementById('qrcode-container'), {
-                        text: joinUrl,
-                        width: 100, height: 100, colorDark: "#1e293b", colorLight: "#ffffff"
-                    });
-                } else {
-                    document.getElementById('qrcode-container').innerHTML = '<span class="text-xs text-red-500">無法加載 QR 碼</span>';
+                try {
+                    if (typeof QRCode !== 'undefined') {
+                        document.getElementById('qrcode-container').innerHTML = '';
+                        new QRCode(document.getElementById('qrcode-container'), {
+                            text: joinUrl,
+                            width: 100, height: 100, colorDark: "#1e293b", colorLight: "#ffffff"
+                        });
+                    } else {
+                        document.getElementById('qrcode-container').innerHTML = '<span class="text-xs text-red-500">無法加載 QR 碼</span>';
+                    }
+                } catch(qrErr) {
+                    console.warn("QR Error", qrErr);
+                    document.getElementById('qrcode-container').innerHTML = '<span class="text-xs text-red-500">QR碼生成失敗</span>';
                 }
 
                 const studentsRef = collection(db, 'artifacts', rootAppId, 'public', 'data', `students_${currentRoomId}`);
@@ -372,15 +406,14 @@
                     renderStudentList();
                     localState.forEach((_, idx) => drawGroup(idx));
                 }, (error) => {
-                    console.error("Error listening to students:", error);
+                    console.warn("Error listening to students:", error);
                     showError("學生資料同步失敗");
                 });
 
             } catch (err) {
                 console.error("Failed to create room", err);
-                showError("無法建立教室: 權限不足或網路錯誤");
-            } finally {
-                showLoading(false);
+                showError("無法建立教室: 伺服器無回應或網路不穩");
+                showLoading(false, 'role'); // Explicitly restore the buttons so it isn't stuck empty
             }
         }
 
@@ -402,7 +435,7 @@
 
         async function confirmJoin() {
             const name = document.getElementById('student-name').value.trim() || "匿名學生";
-            showLoading(true);
+            showLoading(true, 'name');
 
             let retries = 0;
             while (!authInitialized && retries < 30) {
@@ -412,15 +445,20 @@
 
             if (!currentUser || !currentRoomId) {
                 showError("無法連線到伺服器或代碼無效");
-                showLoading(false);
+                showLoading(false, 'name');
                 return;
             }
             
             currentRole = 'student';
 
             try {
-                await saveStudentStateToFirebase(name);
+                // Timeout logic for joining as well to prevent hangs
+                await Promise.race([
+                    saveStudentStateToFirebase(name),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout joining")), 5000))
+                ]);
 
+                showLoading(false, 'none'); // Hides spinner cleanly
                 document.getElementById('setup-modal').classList.add('hidden');
                 
                 document.getElementById('btn-toggle-data').classList.add('hidden');
@@ -433,9 +471,8 @@
 
             } catch (error) {
                 console.error("Failed to join room", error);
-                showError("加入失敗，請確認代碼是否正確。");
-            } finally {
-                showLoading(false);
+                showError("加入失敗: 連線逾時，請確認代碼與網路");
+                showLoading(false, 'name'); // Restores the name entry UI properly
             }
         }
 
@@ -454,7 +491,8 @@
             try {
                 await setDoc(studentRef, payload, { merge: true });
             } catch (err) {
-                console.error("Sync error:", err);
+                console.warn("Sync error:", err);
+                throw err; // Ensure the caller catches the throw
             }
         }
 
@@ -490,19 +528,6 @@
         }
 
         // --- Core UI & DOM ---
-        function showLoading(show) {
-            const ld = document.getElementById('loading-indicator');
-            const sel = document.getElementById('role-selection');
-            const ne = document.getElementById('student-name-entry');
-            if (show) {
-                ld.classList.remove('hidden');
-                sel.classList.add('hidden');
-                ne.classList.add('hidden');
-            } else {
-                ld.classList.add('hidden');
-            }
-        }
-
         function renderDataInputs() {
             const container = document.getElementById('data-grid');
             container.innerHTML = localState.map((group, i) => `
@@ -651,7 +676,8 @@
                 
                 if (currentRole === 'student') {
                     clearTimeout(syncTimeout);
-                    syncTimeout = setTimeout(() => saveStudentStateToFirebase(), 300);
+                    // Safe swallow to prevent unhandled rejections during rapid sliding
+                    syncTimeout = setTimeout(() => saveStudentStateToFirebase().catch(e => console.warn(e)), 300);
                 }
             } else if (field === 'label') {
                 localState[index][field] = value;
@@ -677,7 +703,7 @@
             renderCanvases();
             localState.forEach((_, idx) => drawGroup(idx));
             
-            if (currentRole === 'student') saveStudentStateToFirebase();
+            if (currentRole === 'student') saveStudentStateToFirebase().catch(e => console.warn(e));
         }
 
         // --- Math & Stats ---
