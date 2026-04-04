@@ -68,6 +68,7 @@
       const [room, setRoom] = useState(null);
       const [players, setPlayers] = useState([]);
       const [errorMsg, setErrorMsg] = useState('');
+      const [isHosting, setIsHosting] = useState(false);
 
       useEffect(() => {
         const params = new URLSearchParams(window.location.search);
@@ -119,18 +120,29 @@
 
       const joinAsTeacher = async () => {
         if (!user) return;
+        setIsHosting(true);
         const newRoomId = Math.random().toString(36).substring(2, 7).toUpperCase();
         setRoomId(newRoomId);
         
         try {
-          await setDoc(doc(getRoomsRef(), newRoomId), {
+          const createRoomPromise = setDoc(doc(getRoomsRef(), newRoomId), {
             status: 'lobby',
             hostId: user.uid,
             createdAt: new Date().toISOString()
           });
+
+          // Timeout to prevent silent hanging if Firestore is not enabled in Firebase Console
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error("Connection timeout: Please ensure Firestore Database is fully enabled in your Firebase Console.")), 6000)
+          );
+
+          await Promise.race([createRoomPromise, timeoutPromise]);
           setView('teacher-lobby');
         } catch (e) {
-          setErrorMsg("Error creating room. Check Firebase database read/write rules.");
+          console.error("Hosting error:", e);
+          setErrorMsg(e.message || "Error creating room. Check Firebase database read/write rules.");
+        } finally {
+          setIsHosting(false);
         }
       };
 
@@ -150,13 +162,13 @@
       return (
         <div className="min-h-screen bg-slate-900 text-slate-100 font-sans selection:bg-blue-500/30">
           {errorMsg && (
-            <div className="fixed top-4 left-1/2 -translate-x-1/2 bg-red-500/90 text-white px-6 py-3 rounded-full shadow-2xl z-50 flex items-center gap-3 backdrop-blur-sm">
+            <div className="fixed top-4 left-1/2 -translate-x-1/2 bg-red-500/90 text-white px-6 py-3 rounded-full shadow-2xl z-50 flex items-center gap-3 backdrop-blur-sm z-[100]">
               <span className="font-bold">Error:</span> {errorMsg}
               <button onClick={() => setErrorMsg('')} className="ml-2 hover:bg-white/20 p-1 rounded-full px-2">✕</button>
             </div>
           )}
 
-          {view === 'landing' && <LandingView onHost={joinAsTeacher} onJoin={() => setView('student-login')} />}
+          {view === 'landing' && <LandingView onHost={joinAsTeacher} onJoin={() => setView('student-login')} isHosting={isHosting} />}
           {view === 'teacher-lobby' && <TeacherLobby roomId={roomId} playersCount={players.length} joinUrl={getJoinUrl()} onPlay={async () => { await updateDoc(doc(getRoomsRef(), roomId), { status: 'playing' }); setView('teacher-arena'); }} />}
           {view === 'teacher-arena' && <TeacherArena roomId={roomId} players={players} onStop={async () => { await updateDoc(doc(getRoomsRef(), roomId), { status: 'stopped' }); setView('teacher-lobby'); }} />}
           {view === 'student-login' && <StudentLogin roomId={roomId} setRoomId={setRoomId} userId={user.uid} onJoined={() => setView('student-strategy')} setErrorMsg={setErrorMsg} />}
@@ -168,7 +180,7 @@
     // ---------------------------------------------------------
     // LANDING PAGE
     // ---------------------------------------------------------
-    function LandingView({ onHost, onJoin }) {
+    function LandingView({ onHost, onJoin, isHosting }) {
       return (
         <div className="flex flex-col items-center justify-center min-h-screen p-6 bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950">
           <div className="bg-slate-800/50 p-10 rounded-3xl shadow-2xl border border-slate-700/50 backdrop-blur-md max-w-lg w-full text-center">
@@ -178,8 +190,8 @@
             </h1>
             <p className="text-slate-400 mb-10 text-lg">A multiplayer behavioral economics simulation.</p>
             <div className="space-y-4">
-              <button onClick={onHost} className="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 rounded-2xl font-bold text-xl shadow-lg transition-all active:scale-95 border border-blue-500/30">
-                👨‍🏫 Host Game (Teacher)
+              <button onClick={onHost} disabled={isHosting} className="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 rounded-2xl font-bold text-xl shadow-lg transition-all active:scale-95 border border-blue-500/30 disabled:opacity-50">
+                {isHosting ? '⏳ Creating Room...' : '👨‍🏫 Host Game (Teacher)'}
               </button>
               <div className="relative flex py-2 items-center">
                 <div className="flex-grow border-t border-slate-600"></div>
@@ -375,9 +387,19 @@
         e.preventDefault(); if (!roomId || !name) return;
         setLoading(true);
         try {
-          await setDoc(doc(getPlayersRef(), userId), { roomId: roomId.toUpperCase(), name: name.trim(), emoji, totalScore: 0, strategy: ['COOP', 'COOP', 'COOP', 'COOP', 'COOP'], joinedAt: new Date().toISOString() });
+          const joinPromise = setDoc(doc(getPlayersRef(), userId), { roomId: roomId.toUpperCase(), name: name.trim(), emoji, totalScore: 0, strategy: ['COOP', 'COOP', 'COOP', 'COOP', 'COOP'], joinedAt: new Date().toISOString() });
+          
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error("Connection timeout. Please check your internet connection or DB status.")), 6000)
+          );
+
+          await Promise.race([joinPromise, timeoutPromise]);
           onJoined();
-        } catch (err) { setErrorMsg("Failed to join room. Check DB rules."); setLoading(false); }
+        } catch (err) { 
+          console.error("Join error:", err);
+          setErrorMsg(err.message || "Failed to join room. Check DB rules."); 
+          setLoading(false); 
+        }
       };
 
       return (
