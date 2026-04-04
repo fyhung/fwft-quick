@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Prisoner's Dilemma Multiplayer</title>
+  <title>Prisoner's Dilemma v04041638 Multiplayer</title>
   
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -31,7 +31,7 @@
   <script type="text/babel" data-type="module">
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
     import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
-    import { getFirestore, collection, doc, setDoc, updateDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+    import { getDatabase, ref, set, update, onValue } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js';
 
     // Extract React Hooks from the global React object
     const { useState, useEffect, useRef, useMemo } = React;
@@ -52,11 +52,11 @@
     const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : userProvidedConfig;
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
-    const db = getFirestore(app);
+    const db = getDatabase(app);
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'github-deployment-id';
 
-    const getRoomsRef = () => collection(db, 'artifacts', appId, 'public', 'data', 'rooms');
-    const getPlayersRef = () => collection(db, 'artifacts', appId, 'public', 'data', 'players');
+    const getRoomsPath = () => `artifacts/${appId}/public/data/rooms`;
+    const getPlayersPath = () => `artifacts/${appId}/public/data/players`;
 
     // ---------------------------------------------------------
     // MAIN APPLICATION COMPONENT
@@ -100,14 +100,18 @@
       useEffect(() => {
         if (!user) return;
 
-        const unsubRooms = onSnapshot(getRoomsRef(), (snapshot) => {
-          const allRooms = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        const roomsRef = ref(db, getRoomsPath());
+        const unsubRooms = onValue(roomsRef, (snapshot) => {
+          const data = snapshot.val() || {};
+          const allRooms = Object.keys(data).map(key => ({ id: key, ...data[key] }));
           const currentRoom = allRooms.find(r => r.id === roomId);
           if (currentRoom) setRoom(currentRoom);
         }, (error) => console.error(error));
 
-        const unsubPlayers = onSnapshot(getPlayersRef(), (snapshot) => {
-          const allPlayers = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        const playersRef = ref(db, getPlayersPath());
+        const unsubPlayers = onValue(playersRef, (snapshot) => {
+          const data = snapshot.val() || {};
+          const allPlayers = Object.keys(data).map(key => ({ id: key, ...data[key] }));
           const roomPlayers = allPlayers.filter(p => p.roomId === roomId);
           setPlayers(roomPlayers);
         }, (error) => console.error(error));
@@ -125,15 +129,15 @@
         setRoomId(newRoomId);
         
         try {
-          const createRoomPromise = setDoc(doc(getRoomsRef(), newRoomId), {
+          const createRoomPromise = set(ref(db, `${getRoomsPath()}/${newRoomId}`), {
             status: 'lobby',
             hostId: user.uid,
             createdAt: new Date().toISOString()
           });
 
-          // Timeout to prevent silent hanging if Firestore is not enabled in Firebase Console
+          // Timeout to prevent silent hanging if Realtime Database is not enabled in Firebase Console
           const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error("Connection timeout: Please ensure Firestore Database is fully enabled in your Firebase Console.")), 6000)
+            setTimeout(() => reject(new Error("Connection timeout: Please ensure Realtime Database is fully enabled in your Firebase Console.")), 6000)
           );
 
           await Promise.race([createRoomPromise, timeoutPromise]);
@@ -169,8 +173,8 @@
           )}
 
           {view === 'landing' && <LandingView onHost={joinAsTeacher} onJoin={() => setView('student-login')} isHosting={isHosting} />}
-          {view === 'teacher-lobby' && <TeacherLobby roomId={roomId} playersCount={players.length} joinUrl={getJoinUrl()} onPlay={async () => { await updateDoc(doc(getRoomsRef(), roomId), { status: 'playing' }); setView('teacher-arena'); }} />}
-          {view === 'teacher-arena' && <TeacherArena roomId={roomId} players={players} onStop={async () => { await updateDoc(doc(getRoomsRef(), roomId), { status: 'stopped' }); setView('teacher-lobby'); }} />}
+          {view === 'teacher-lobby' && <TeacherLobby roomId={roomId} playersCount={players.length} joinUrl={getJoinUrl()} onPlay={async () => { await update(ref(db, `${getRoomsPath()}/${roomId}`), { status: 'playing' }); setView('teacher-arena'); }} />}
+          {view === 'teacher-arena' && <TeacherArena roomId={roomId} players={players} onStop={async () => { await update(ref(db, `${getRoomsPath()}/${roomId}`), { status: 'stopped' }); setView('teacher-lobby'); }} />}
           {view === 'student-login' && <StudentLogin roomId={roomId} setRoomId={setRoomId} userId={user.uid} onJoined={() => setView('student-strategy')} setErrorMsg={setErrorMsg} />}
           {view === 'student-strategy' && <StudentStrategy userId={user.uid} roomId={roomId} roomStatus={room?.status} player={players.find(p => p.id === user.uid)} setErrorMsg={setErrorMsg} />}
         </div>
@@ -286,8 +290,8 @@
 
         const updateScoreInDB = async (p1Id, p1NewScore, p2Id, p2NewScore) => {
           try {
-            await updateDoc(doc(getPlayersRef(), p1Id), { totalScore: p1NewScore });
-            await updateDoc(doc(getPlayersRef(), p2Id), { totalScore: p2NewScore });
+            await update(ref(db, `${getPlayersPath()}/${p1Id}`), { totalScore: p1NewScore });
+            await update(ref(db, `${getPlayersPath()}/${p2Id}`), { totalScore: p2NewScore });
           } catch (e) { console.error("Score update failed", e); }
         };
 
@@ -387,7 +391,7 @@
         e.preventDefault(); if (!roomId || !name) return;
         setLoading(true);
         try {
-          const joinPromise = setDoc(doc(getPlayersRef(), userId), { roomId: roomId.toUpperCase(), name: name.trim(), emoji, totalScore: 0, strategy: ['COOP', 'COOP', 'COOP', 'COOP', 'COOP'], joinedAt: new Date().toISOString() });
+          const joinPromise = set(ref(db, `${getPlayersPath()}/${userId}`), { roomId: roomId.toUpperCase(), name: name.trim(), emoji, totalScore: 0, strategy: ['COOP', 'COOP', 'COOP', 'COOP', 'COOP'], joinedAt: new Date().toISOString() });
           
           const timeoutPromise = new Promise((_, reject) => 
             setTimeout(() => reject(new Error("Connection timeout. Please check your internet connection or DB status.")), 6000)
@@ -439,7 +443,7 @@
       const updateStrategy = async (index, value) => {
         const newStrategy = [...localStrategy]; newStrategy[index] = value; setLocalStrategy(newStrategy);
         setIsUpdating(true);
-        try { await updateDoc(doc(getPlayersRef(), userId), { strategy: newStrategy }); } catch (e) { setErrorMsg("Failed to sync strategy."); } finally { setIsUpdating(false); }
+        try { await update(ref(db, `${getPlayersPath()}/${userId}`), { strategy: newStrategy }); } catch (e) { setErrorMsg("Failed to sync strategy."); } finally { setIsUpdating(false); }
       };
 
       return (
