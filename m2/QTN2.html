@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Prisoner's Dilemma v04041638 Multiplayer</title>
+  <title>Prisoner's Dilemma v04041651 Multiplayer</title>
   
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -173,8 +173,8 @@
           )}
 
           {view === 'landing' && <LandingView onHost={joinAsTeacher} onJoin={() => setView('student-login')} isHosting={isHosting} />}
-          {view === 'teacher-lobby' && <TeacherLobby roomId={roomId} playersCount={players.length} joinUrl={getJoinUrl()} onPlay={async () => { await update(ref(db, `${getRoomsPath()}/${roomId}`), { status: 'playing' }); setView('teacher-arena'); }} />}
-          {view === 'teacher-arena' && <TeacherArena roomId={roomId} players={players} onStop={async () => { await update(ref(db, `${getRoomsPath()}/${roomId}`), { status: 'stopped' }); setView('teacher-lobby'); }} />}
+          {view === 'teacher-lobby' && <TeacherLobby roomId={roomId} playersCount={players.length} joinUrl={getJoinUrl()} onPlay={async (settings) => { await update(ref(db, `${getRoomsPath()}/${roomId}`), { status: 'playing', settings }); setView('teacher-arena'); }} />}
+          {view === 'teacher-arena' && <TeacherArena roomId={roomId} room={room} players={players} onStop={async () => { await update(ref(db, `${getRoomsPath()}/${roomId}`), { status: 'stopped' }); setView('teacher-lobby'); }} />}
           {view === 'student-login' && <StudentLogin roomId={roomId} setRoomId={setRoomId} userId={user.uid} onJoined={() => setView('student-strategy')} setErrorMsg={setErrorMsg} />}
           {view === 'student-strategy' && <StudentStrategy userId={user.uid} roomId={roomId} roomStatus={room?.status} player={players.find(p => p.id === user.uid)} setErrorMsg={setErrorMsg} />}
         </div>
@@ -215,13 +215,17 @@
     // TEACHER VIEWS
     // ---------------------------------------------------------
     function TeacherLobby({ roomId, playersCount, joinUrl, onPlay }) {
+      const [avatarsPerStudent, setAvatarsPerStudent] = useState(1);
+      const [numAngels, setNumAngels] = useState(0);
+      const [numDevils, setNumDevils] = useState(0);
+
       const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(joinUrl)}&bgcolor=1e293b&color=38bdf8`;
       return (
         <div className="flex flex-col items-center justify-center min-h-screen p-6">
           <div className="bg-slate-800 p-8 rounded-3xl shadow-2xl border border-slate-700 w-full max-w-2xl text-center">
             <h2 className="text-3xl font-bold mb-2">Game Lobby</h2>
             <p className="text-slate-400 mb-8">Tell your students to scan the QR code or enter the Room Code.</p>
-            <div className="flex flex-col md:flex-row items-center justify-center gap-10 mb-10">
+            <div className="flex flex-col md:flex-row items-center justify-center gap-10 mb-8">
               <div className="bg-slate-900 p-4 rounded-2xl shadow-inner inline-block border border-slate-700">
                  <img src={qrUrl} alt="Join QR Code" className="w-48 h-48 rounded-xl opacity-90 hover:opacity-100 transition-opacity" />
               </div>
@@ -236,7 +240,24 @@
                 </div>
               </div>
             </div>
-            <button onClick={onPlay} disabled={playersCount === 0} className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed rounded-2xl font-bold text-2xl shadow-[0_0_20px_rgba(16,185,129,0.3)] transition-all active:scale-95">
+
+            <div className="bg-slate-900/50 p-5 rounded-2xl border border-slate-700 mb-8 text-left space-y-4 shadow-inner">
+              <h3 className="font-bold text-slate-300 border-b border-slate-700 pb-2 mb-3">⚙️ Simulation Settings</h3>
+              <div className="flex items-center justify-between">
+                <label className="text-slate-400 font-semibold">Avatars per Student</label>
+                <input type="number" min="1" max="10" value={avatarsPerStudent} onChange={(e) => setAvatarsPerStudent(Number(e.target.value))} className="bg-slate-800 border border-slate-600 rounded-lg px-3 py-1 w-20 text-center focus:border-blue-500 outline-none" />
+              </div>
+              <div className="flex items-center justify-between">
+                <label className="text-slate-400 font-semibold">😇 Angels (Always COOP)</label>
+                <input type="number" min="0" max="50" value={numAngels} onChange={(e) => setNumAngels(Number(e.target.value))} className="bg-slate-800 border border-slate-600 rounded-lg px-3 py-1 w-20 text-center focus:border-blue-500 outline-none" />
+              </div>
+              <div className="flex items-center justify-between">
+                <label className="text-slate-400 font-semibold">😈 Devils (Always BETRAY)</label>
+                <input type="number" min="0" max="50" value={numDevils} onChange={(e) => setNumDevils(Number(e.target.value))} className="bg-slate-800 border border-slate-600 rounded-lg px-3 py-1 w-20 text-center focus:border-blue-500 outline-none" />
+              </div>
+            </div>
+
+            <button onClick={() => onPlay({ avatarsPerStudent, numAngels, numDevils })} disabled={playersCount === 0} className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed rounded-2xl font-bold text-2xl shadow-[0_0_20px_rgba(16,185,129,0.3)] transition-all active:scale-95">
               ▶ START SIMULATION
             </button>
           </div>
@@ -244,12 +265,15 @@
       );
     }
 
-    function TeacherArena({ roomId, players, onStop }) {
+    function TeacherArena({ roomId, room, players, onStop }) {
       const canvasRef = useRef(null);
       const physicsPlayers = useRef({});
+      const localScores = useRef({});
+      const hasInitialized = useRef(false);
       const cooldowns = useRef({});
       const effects = useRef([]);
       const animationRef = useRef(null);
+      const [leaderboard, setLeaderboard] = useState([]);
 
       const playMatch = (p1, p2) => {
         let p1Score = 0; let p2Score = 0; let p1Moves = []; let p2Moves = [];
@@ -271,14 +295,57 @@
       };
 
       useEffect(() => {
+        const settings = room?.settings || { avatarsPerStudent: 1, numAngels: 0, numDevils: 0 };
+        
+        if (!hasInitialized.current) {
+            localScores.current['angel_base'] = 0;
+            for(let i=0; i<settings.numAngels; i++) {
+                physicsPlayers.current[`angel_${i}`] = { id: 'angel_base', physicsId: `angel_${i}`, type: 'bot', name: 'Angel', emoji: '😇', strategy: ['COOP','COOP','COOP','COOP','COOP'], x: Math.random() * 600 + 100, y: Math.random() * 400 + 100, vx: (Math.random() - 0.5) * 3, vy: (Math.random() - 0.5) * 3 };
+            }
+            localScores.current['devil_base'] = 0;
+            for(let i=0; i<settings.numDevils; i++) {
+                physicsPlayers.current[`devil_${i}`] = { id: 'devil_base', physicsId: `devil_${i}`, type: 'bot', name: 'Devil', emoji: '😈', strategy: ['BETRAY','BETRAY','BETRAY','BETRAY','BETRAY'], x: Math.random() * 600 + 100, y: Math.random() * 400 + 100, vx: (Math.random() - 0.5) * 3, vy: (Math.random() - 0.5) * 3 };
+            }
+            hasInitialized.current = true;
+        }
+
+        // Add avatars for players (syncs late-joiners as well)
         players.forEach(p => {
-          if (!physicsPlayers.current[p.id]) {
-            physicsPlayers.current[p.id] = { x: Math.random() * 600 + 100, y: Math.random() * 400 + 100, vx: (Math.random() - 0.5) * 3, vy: (Math.random() - 0.5) * 3, ...p };
+          if (localScores.current[p.id] === undefined) {
+              localScores.current[p.id] = p.totalScore || 0;
+              for(let i=0; i<settings.avatarsPerStudent; i++) {
+                  physicsPlayers.current[`${p.id}_${i}`] = { ...p, id: p.id, physicsId: `${p.id}_${i}`, type: 'student', x: Math.random() * 600 + 100, y: Math.random() * 400 + 100, vx: (Math.random() - 0.5) * 3, vy: (Math.random() - 0.5) * 3 };
+              }
           } else {
-            Object.assign(physicsPlayers.current[p.id], { name: p.name, emoji: p.emoji, strategy: p.strategy, totalScore: p.totalScore });
+              Object.values(physicsPlayers.current).forEach(physP => {
+                  if (physP.id === p.id) {
+                      physP.strategy = p.strategy;
+                      physP.name = p.name;
+                      physP.emoji = p.emoji;
+                  }
+              });
           }
         });
-      }, [players]);
+      }, [players, room?.settings]);
+
+      // Interval to update leaderboard data smoothly without blocking the 60fps canvas loop
+      useEffect(() => {
+          const interval = setInterval(() => {
+              const lb = [];
+              players.forEach(p => {
+                  lb.push({ id: p.id, name: p.name, emoji: p.emoji, strategy: p.strategy, totalScore: localScores.current[p.id] !== undefined ? localScores.current[p.id] : p.totalScore });
+              });
+              if (room?.settings?.numAngels > 0) {
+                  lb.push({ id: 'angel_base', name: 'Angel Team', emoji: '😇', strategy: ['COOP','COOP','COOP','COOP','COOP'], totalScore: localScores.current['angel_base'] || 0 });
+              }
+              if (room?.settings?.numDevils > 0) {
+                  lb.push({ id: 'devil_base', name: 'Devil Team', emoji: '😈', strategy: ['BETRAY','BETRAY','BETRAY','BETRAY','BETRAY'], totalScore: localScores.current['devil_base'] || 0 });
+              }
+              lb.sort((a,b) => b.totalScore - a.totalScore);
+              setLeaderboard(lb);
+          }, 500);
+          return () => clearInterval(interval);
+      }, [players, room?.settings]);
 
       useEffect(() => {
         const canvas = canvasRef.current;
@@ -288,10 +355,9 @@
         handleResize();
         window.addEventListener('resize', handleResize);
 
-        const updateScoreInDB = async (p1Id, p1NewScore, p2Id, p2NewScore) => {
+        const updateScoreInDB = async (pId, newScore) => {
           try {
-            await update(ref(db, `${getPlayersPath()}/${p1Id}`), { totalScore: p1NewScore });
-            await update(ref(db, `${getPlayersPath()}/${p2Id}`), { totalScore: p2NewScore });
+            await update(ref(db, `${getPlayersPath()}/${pId}`), { totalScore: newScore });
           } catch (e) { console.error("Score update failed", e); }
         };
 
@@ -306,24 +372,32 @@
             p.x = Math.max(20, Math.min(canvas.width - 20, p.x));
             p.y = Math.max(20, Math.min(canvas.height - 20, p.y));
             ctx.font = "14px system-ui, sans-serif"; ctx.fillStyle = "rgba(255, 255, 255, 0.7)"; ctx.textAlign = "center";
-            ctx.fillText(p.name, p.x, p.y - 25);
+            if (p.type === 'student') ctx.fillText(p.name, p.x, p.y - 25);
             ctx.font = "32px system-ui"; ctx.fillText(p.emoji || '😀', p.x, p.y + 10);
           });
 
           for (let i = 0; i < pArr.length; i++) {
             for (let j = i + 1; j < pArr.length; j++) {
               const p1 = pArr[i]; const p2 = pArr[j];
+              
+              if (p1.id === p2.id) continue; // Skip collisions between avatars of the exact same student/entity
+
               const dist = Math.hypot(p1.x - p2.x, p1.y - p2.y);
               if (dist < 40) { 
-                const pairId = [p1.id, p2.id].sort().join('_');
+                const pairId = [p1.physicsId, p2.physicsId].sort().join('_');
                 const now = Date.now();
                 if (!cooldowns.current[pairId] || now - cooldowns.current[pairId] > 3000) {
                   cooldowns.current[pairId] = now;
                   const { p1Delta, p2Delta } = playMatch(p1, p2);
                   p1.vx *= -1; p1.vy *= -1; p2.vx *= -1; p2.vy *= -1;
                   effects.current.push({ x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2, text: `${p1Delta > 0 ? '+'+p1Delta : p1Delta} | ${p2Delta > 0 ? '+'+p2Delta : p2Delta}`, life: 60 });
-                  p1.totalScore += p1Delta; p2.totalScore += p2Delta;
-                  updateScoreInDB(p1.id, p1.totalScore, p2.id, p2.totalScore);
+                  
+                  localScores.current[p1.id] += p1Delta;
+                  localScores.current[p2.id] += p2Delta;
+
+                  // Only sync student scores to firebase, bots exist purely locally in memory
+                  if (p1.type === 'student') updateScoreInDB(p1.id, localScores.current[p1.id]);
+                  if (p2.type === 'student') updateScoreInDB(p2.id, localScores.current[p2.id]);
                 }
               }
             }
@@ -340,9 +414,7 @@
         };
         draw();
         return () => { window.removeEventListener('resize', handleResize); cancelAnimationFrame(animationRef.current); };
-      }, [players]);
-
-      const sortedPlayers = [...players].sort((a, b) => b.totalScore - a.totalScore);
+      }, [players, room?.settings]);
 
       return (
         <div className="flex flex-col md:flex-row h-screen overflow-hidden">
@@ -355,11 +427,11 @@
           </div>
           <div className="w-full md:w-96 bg-slate-800 border-l border-slate-700 flex flex-col z-10 shadow-[-10px_0_30px_rgba(0,0,0,0.5)]">
             <div className="p-6 border-b border-slate-700 bg-slate-800/50">
-              <h3 className="text-2xl font-bold flex items-center justify-between"><span>🏆 Leaderboard</span><span className="text-sm bg-slate-700 px-3 py-1 rounded-full">{players.length}</span></h3>
+              <h3 className="text-2xl font-bold flex items-center justify-between"><span>🏆 Leaderboard</span><span className="text-sm bg-slate-700 px-3 py-1 rounded-full">{leaderboard.length}</span></h3>
             </div>
             <div className="flex-grow overflow-y-auto p-4 space-y-3 custom-scrollbar">
-              {sortedPlayers.map((p, index) => (
-                <div key={p.id} className="bg-slate-700/40 p-4 rounded-xl flex items-center gap-4 transition-transform hover:scale-[1.02] border border-slate-600/30">
+              {leaderboard.map((p, index) => (
+                <div key={p.id} className={`p-4 rounded-xl flex items-center gap-4 transition-transform hover:scale-[1.02] border ${p.id.includes('base') ? 'bg-slate-800 border-indigo-500/30 shadow-inner' : 'bg-slate-700/40 border-slate-600/30'}`}>
                   <div className="text-xl font-bold text-slate-500 w-6">#{index + 1}</div>
                   <div className="text-3xl">{p.emoji}</div>
                   <div className="flex-grow min-w-0">
