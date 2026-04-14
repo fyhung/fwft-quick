@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Prisoner 14/4 1805 Dilemma Multiplayer</title>
+  <title>Prisoner 14/4 1610 Dilemma Multiplayer</title>
   
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -132,7 +132,8 @@
           const createRoomPromise = set(ref(db, `${getRoomsPath()}/${newRoomId}`), {
             status: 'lobby',
             hostId: user.uid,
-            createdAt: new Date().toISOString()
+            createdAt: new Date().toISOString(),
+            settings: { avatarsPerStudent: 1, numAngels: 0, numDevils: 0, allowSelfCollision: false, enableMemory: false, allowTFT: true }
           });
 
           // Timeout to prevent silent hanging if Realtime Database is not enabled in Firebase Console
@@ -221,6 +222,14 @@
       const [allowSelfCollision, setAllowSelfCollision] = useState(false);
       const [enableMemory, setEnableMemory] = useState(false);
       const [allowTFT, setAllowTFT] = useState(true);
+
+      // Sync settings to Firebase in real-time while in the lobby so students see UI changes immediately
+      useEffect(() => {
+        if (!roomId) return;
+        update(ref(db, `${getRoomsPath()}/${roomId}/settings`), {
+          avatarsPerStudent, numAngels, numDevils, allowSelfCollision, enableMemory, allowTFT
+        }).catch(err => console.error("Failed to sync live settings:", err));
+      }, [avatarsPerStudent, numAngels, numDevils, allowSelfCollision, enableMemory, allowTFT, roomId]);
 
       const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(joinUrl)}&bgcolor=1e293b&color=38bdf8`;
       return (
