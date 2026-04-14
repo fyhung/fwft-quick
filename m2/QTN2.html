@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Prisoner 14/4 6pm Dilemma Multiplayer</title>
+  <title>Prisoner 14/4 1805 Dilemma Multiplayer</title>
   
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -416,16 +416,24 @@
       useEffect(() => {
           const interval = setInterval(() => {
               const lb = [];
+              const avatarsPerStudent = room?.settings?.avatarsPerStudent || 1;
+              
               players.forEach(p => {
-                  lb.push({ id: p.id, name: p.name, emoji: p.emoji, strategy: p.strategy, totalScore: localScores.current[p.id] !== undefined ? localScores.current[p.id] : p.totalScore });
+                  const total = localScores.current[p.id] !== undefined ? localScores.current[p.id] : p.totalScore;
+                  lb.push({ id: p.id, name: p.name, emoji: p.emoji, strategy: p.strategy, totalScore: total, scorePerAvatar: total / avatarsPerStudent });
               });
               if (room?.settings?.numAngels > 0) {
-                  lb.push({ id: 'angel_base', name: 'Angel Team', emoji: '😇', strategy: ['COOP','COOP','COOP','COOP','COOP'], totalScore: localScores.current['angel_base'] || 0 });
+                  const numA = room.settings.numAngels;
+                  const total = localScores.current['angel_base'] || 0;
+                  lb.push({ id: 'angel_base', name: 'Angel Team', emoji: '😇', strategy: ['COOP','COOP','COOP','COOP','COOP'], totalScore: total, scorePerAvatar: total / numA });
               }
               if (room?.settings?.numDevils > 0) {
-                  lb.push({ id: 'devil_base', name: 'Devil Team', emoji: '😈', strategy: ['BETRAY','BETRAY','BETRAY','BETRAY','BETRAY'], totalScore: localScores.current['devil_base'] || 0 });
+                  const numD = room.settings.numDevils;
+                  const total = localScores.current['devil_base'] || 0;
+                  lb.push({ id: 'devil_base', name: 'Devil Team', emoji: '😈', strategy: ['BETRAY','BETRAY','BETRAY','BETRAY','BETRAY'], totalScore: total, scorePerAvatar: total / numD });
               }
-              lb.sort((a,b) => b.totalScore - a.totalScore);
+              // Sort by average score per avatar instead of raw total score
+              lb.sort((a,b) => b.scorePerAvatar - a.scorePerAvatar);
               setLeaderboard(lb);
           }, 500);
           return () => clearInterval(interval);
@@ -525,7 +533,16 @@
                       {p.strategy.map((s, i) => <span key={i} className={`w-3 h-3 rounded-full ${s === 'COOP' ? 'bg-blue-400' : s === 'BETRAY' ? 'bg-red-400' : 'bg-purple-400'}`}></span>)}
                     </div>
                   </div>
-                  <div className="text-2xl font-black font-mono text-emerald-400">{p.totalScore}</div>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <div className="text-2xl font-black font-mono text-emerald-400">{Number(p.scorePerAvatar).toFixed(1)}</div>
+                      <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider mt-[-2px]">Avg/Bot</div>
+                    </div>
+                    <div className="text-right border-l border-slate-600 pl-3">
+                      <div className="text-xl font-bold font-mono text-slate-300">{p.totalScore}</div>
+                      <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider mt-[-2px]">Total</div>
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
