@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Prisoner's Dilemma v04041700 Multiplayer</title>
+  <title>Prisoner 14/4 Dilemma Multiplayer</title>
   
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -219,6 +219,7 @@
       const [numAngels, setNumAngels] = useState(0);
       const [numDevils, setNumDevils] = useState(0);
       const [allowSelfCollision, setAllowSelfCollision] = useState(false);
+      const [enableMemory, setEnableMemory] = useState(false);
 
       const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(joinUrl)}&bgcolor=1e293b&color=38bdf8`;
       return (
@@ -266,9 +267,19 @@
                   <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500"></div>
                 </label>
               </div>
+              <div className="flex items-center justify-between pt-2 border-t border-slate-700/50">
+                <div className="flex flex-col">
+                  <label className="text-slate-400 font-semibold">🧠 Enable Avatar Memory</label>
+                  <span className="text-xs text-slate-500 font-normal">TFT remembers an opponent's last move from past encounters</span>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" className="sr-only peer" checked={enableMemory} onChange={(e) => setEnableMemory(e.target.checked)} />
+                  <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500"></div>
+                </label>
+              </div>
             </div>
 
-            <button onClick={() => onPlay({ avatarsPerStudent, numAngels, numDevils, allowSelfCollision })} disabled={playersCount === 0} className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed rounded-2xl font-bold text-2xl shadow-[0_0_20px_rgba(16,185,129,0.3)] transition-all active:scale-95">
+            <button onClick={() => onPlay({ avatarsPerStudent, numAngels, numDevils, allowSelfCollision, enableMemory })} disabled={playersCount === 0} className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed rounded-2xl font-bold text-2xl shadow-[0_0_20px_rgba(16,185,129,0.3)] transition-all active:scale-95">
               ▶ START SIMULATION
             </button>
           </div>
@@ -283,18 +294,26 @@
       const hasInitialized = useRef(false);
       const cooldowns = useRef({});
       const effects = useRef([]);
+      const matchMemory = useRef({});
       const animationRef = useRef(null);
       const [leaderboard, setLeaderboard] = useState([]);
 
-      const playMatch = (p1, p2) => {
+      const playMatch = (p1, p2, settings) => {
         let p1Score = 0; let p2Score = 0; let p1Moves = []; let p2Moves = [];
         const s1 = Array.isArray(p1.strategy) ? p1.strategy : ['COOP', 'COOP', 'COOP', 'COOP', 'COOP'];
         const s2 = Array.isArray(p2.strategy) ? p2.strategy : ['COOP', 'COOP', 'COOP', 'COOP', 'COOP'];
 
+        const pairId = [p1.physicsId, p2.physicsId].sort().join('_');
+        const pastEncounter = settings.enableMemory ? matchMemory.current[pairId] : null;
+
+        // If memory is enabled and they've met, TFT copies the opponent's final move from their last match.
+        let p1TftFirst = pastEncounter ? pastEncounter[p2.physicsId] : 'COOP';
+        let p2TftFirst = pastEncounter ? pastEncounter[p1.physicsId] : 'COOP';
+
         for (let i = 0; i < 5; i++) {
           let m1 = s1[i] || 'COOP'; let m2 = s2[i] || 'COOP';
-          if (m1 === 'TFT') m1 = i === 0 ? 'COOP' : p2Moves[i - 1];
-          if (m2 === 'TFT') m2 = i === 0 ? 'COOP' : p1Moves[i - 1];
+          if (m1 === 'TFT') m1 = i === 0 ? p1TftFirst : p2Moves[i - 1];
+          if (m2 === 'TFT') m2 = i === 0 ? p2TftFirst : p1Moves[i - 1];
           p1Moves.push(m1); p2Moves.push(m2);
 
           if (m1 === 'COOP' && m2 === 'COOP') { p1Score += 2; p2Score += 2; }
@@ -302,6 +321,15 @@
           else if (m1 === 'BETRAY' && m2 === 'COOP') { p1Score += 3; p2Score -= 1; }
           else if (m1 === 'COOP' && m2 === 'BETRAY') { p1Score -= 1; p2Score += 3; }
         }
+
+        // Store the final moves of this match into memory for next time
+        if (settings.enableMemory) {
+          matchMemory.current[pairId] = {
+            [p1.physicsId]: p1Moves[4],
+            [p2.physicsId]: p2Moves[4]
+          };
+        }
+
         return { p1Delta: p1Score, p2Delta: p2Score };
       };
 
@@ -362,7 +390,7 @@
         const canvas = canvasRef.current;
         if (!canvas) return;
         const ctx = canvas.getContext('2d');
-        const settings = room?.settings || { avatarsPerStudent: 1, numAngels: 0, numDevils: 0, allowSelfCollision: false };
+        const settings = room?.settings || { avatarsPerStudent: 1, numAngels: 0, numDevils: 0, allowSelfCollision: false, enableMemory: false };
         const handleResize = () => { canvas.width = canvas.parentElement.clientWidth; canvas.height = canvas.parentElement.clientHeight; };
         handleResize();
         window.addEventListener('resize', handleResize);
@@ -400,7 +428,7 @@
                 const now = Date.now();
                 if (!cooldowns.current[pairId] || now - cooldowns.current[pairId] > 3000) {
                   cooldowns.current[pairId] = now;
-                  const { p1Delta, p2Delta } = playMatch(p1, p2);
+                  const { p1Delta, p2Delta } = playMatch(p1, p2, settings);
                   p1.vx *= -1; p1.vy *= -1; p2.vx *= -1; p2.vy *= -1;
                   effects.current.push({ x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2, text: `${p1Delta > 0 ? '+'+p1Delta : p1Delta} | ${p2Delta > 0 ? '+'+p2Delta : p2Delta}`, life: 60 });
                   
