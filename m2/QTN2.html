@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Prisoner 14/4 Dilemma Multiplayer</title>
+  <title>Prisoner 14/4 6pm Dilemma Multiplayer</title>
   
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -176,7 +176,7 @@
           {view === 'teacher-lobby' && <TeacherLobby roomId={roomId} playersCount={players.length} joinUrl={getJoinUrl()} onPlay={async (settings) => { await update(ref(db, `${getRoomsPath()}/${roomId}`), { status: 'playing', settings }); setView('teacher-arena'); }} />}
           {view === 'teacher-arena' && <TeacherArena roomId={roomId} room={room} players={players} onStop={async () => { await update(ref(db, `${getRoomsPath()}/${roomId}`), { status: 'stopped' }); setView('teacher-lobby'); }} />}
           {view === 'student-login' && <StudentLogin roomId={roomId} setRoomId={setRoomId} userId={user.uid} onJoined={() => setView('student-strategy')} setErrorMsg={setErrorMsg} />}
-          {view === 'student-strategy' && <StudentStrategy userId={user.uid} roomId={roomId} roomStatus={room?.status} player={players.find(p => p.id === user.uid)} setErrorMsg={setErrorMsg} />}
+          {view === 'student-strategy' && <StudentStrategy userId={user.uid} roomId={roomId} roomStatus={room?.status} roomSettings={room?.settings} player={players.find(p => p.id === user.uid)} setErrorMsg={setErrorMsg} />}
         </div>
       );
     }
@@ -220,6 +220,7 @@
       const [numDevils, setNumDevils] = useState(0);
       const [allowSelfCollision, setAllowSelfCollision] = useState(false);
       const [enableMemory, setEnableMemory] = useState(false);
+      const [allowTFT, setAllowTFT] = useState(true);
 
       const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(joinUrl)}&bgcolor=1e293b&color=38bdf8`;
       return (
@@ -277,9 +278,19 @@
                   <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500"></div>
                 </label>
               </div>
+              <div className="flex items-center justify-between pt-2 border-t border-slate-700/50">
+                <div className="flex flex-col">
+                  <label className="text-slate-400 font-semibold">🎭 Allow Tit-For-Tat</label>
+                  <span className="text-xs text-slate-500 font-normal">Students can select the TFT strategy in their app</span>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" className="sr-only peer" checked={allowTFT} onChange={(e) => setAllowTFT(e.target.checked)} />
+                  <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500"></div>
+                </label>
+              </div>
             </div>
 
-            <button onClick={() => onPlay({ avatarsPerStudent, numAngels, numDevils, allowSelfCollision, enableMemory })} disabled={playersCount === 0} className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed rounded-2xl font-bold text-2xl shadow-[0_0_20px_rgba(16,185,129,0.3)] transition-all active:scale-95">
+            <button onClick={() => onPlay({ avatarsPerStudent, numAngels, numDevils, allowSelfCollision, enableMemory, allowTFT })} disabled={playersCount === 0} className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed rounded-2xl font-bold text-2xl shadow-[0_0_20px_rgba(16,185,129,0.3)] transition-all active:scale-95">
               ▶ START SIMULATION
             </button>
           </div>
@@ -337,34 +348,68 @@
         const settings = room?.settings || { avatarsPerStudent: 1, numAngels: 0, numDevils: 0 };
         
         if (!hasInitialized.current) {
+            // Calculate an even distribution grid for initial spawn
+            const estW = window.innerWidth > 768 ? window.innerWidth - 384 : window.innerWidth; // 384 is the width of the leaderboard
+            const estH = window.innerHeight;
+            const totalEntities = settings.numAngels + settings.numDevils + (players.length * settings.avatarsPerStudent);
+            const cols = Math.max(1, Math.ceil(Math.sqrt(totalEntities * (estW / estH))));
+            const rows = Math.max(1, Math.ceil(totalEntities / cols));
+            const cellW = estW / cols;
+            const cellH = estH / rows;
+            let spawnIndex = 0;
+
+            const getSpawnPos = () => {
+                if (totalEntities === 0) return { x: 100, y: 100 };
+                const x = (spawnIndex % cols) * cellW + cellW / 2;
+                const y = Math.floor(spawnIndex / cols) * cellH + cellH / 2;
+                spawnIndex++;
+                // Add minor random jitter so they don't form perfect mechanical lines
+                return {
+                    x: Math.max(20, Math.min(estW - 20, x + (Math.random() * 40 - 20))),
+                    y: Math.max(20, Math.min(estH - 20, y + (Math.random() * 40 - 20)))
+                };
+            };
+
             localScores.current['angel_base'] = 0;
             for(let i=0; i<settings.numAngels; i++) {
-                physicsPlayers.current[`angel_${i}`] = { id: 'angel_base', physicsId: `angel_${i}`, type: 'bot', name: 'Angel', emoji: '😇', strategy: ['COOP','COOP','COOP','COOP','COOP'], x: Math.random() * 600 + 100, y: Math.random() * 400 + 100, vx: (Math.random() - 0.5) * 3, vy: (Math.random() - 0.5) * 3 };
+                const pos = getSpawnPos();
+                physicsPlayers.current[`angel_${i}`] = { id: 'angel_base', physicsId: `angel_${i}`, type: 'bot', name: 'Angel', emoji: '😇', strategy: ['COOP','COOP','COOP','COOP','COOP'], x: pos.x, y: pos.y, vx: (Math.random() - 0.5) * 3, vy: (Math.random() - 0.5) * 3 };
             }
             localScores.current['devil_base'] = 0;
             for(let i=0; i<settings.numDevils; i++) {
-                physicsPlayers.current[`devil_${i}`] = { id: 'devil_base', physicsId: `devil_${i}`, type: 'bot', name: 'Devil', emoji: '😈', strategy: ['BETRAY','BETRAY','BETRAY','BETRAY','BETRAY'], x: Math.random() * 600 + 100, y: Math.random() * 400 + 100, vx: (Math.random() - 0.5) * 3, vy: (Math.random() - 0.5) * 3 };
+                const pos = getSpawnPos();
+                physicsPlayers.current[`devil_${i}`] = { id: 'devil_base', physicsId: `devil_${i}`, type: 'bot', name: 'Devil', emoji: '😈', strategy: ['BETRAY','BETRAY','BETRAY','BETRAY','BETRAY'], x: pos.x, y: pos.y, vx: (Math.random() - 0.5) * 3, vy: (Math.random() - 0.5) * 3 };
             }
-            hasInitialized.current = true;
-        }
 
-        // Add avatars for players (syncs late-joiners as well)
-        players.forEach(p => {
-          if (localScores.current[p.id] === undefined) {
+            // Add avatars for initial players using the grid
+            players.forEach(p => {
               localScores.current[p.id] = p.totalScore || 0;
               for(let i=0; i<settings.avatarsPerStudent; i++) {
-                  physicsPlayers.current[`${p.id}_${i}`] = { ...p, id: p.id, physicsId: `${p.id}_${i}`, type: 'student', x: Math.random() * 600 + 100, y: Math.random() * 400 + 100, vx: (Math.random() - 0.5) * 3, vy: (Math.random() - 0.5) * 3 };
+                  const pos = getSpawnPos();
+                  physicsPlayers.current[`${p.id}_${i}`] = { ...p, id: p.id, physicsId: `${p.id}_${i}`, type: 'student', x: pos.x, y: pos.y, vx: (Math.random() - 0.5) * 3, vy: (Math.random() - 0.5) * 3 };
               }
-          } else {
-              Object.values(physicsPlayers.current).forEach(physP => {
-                  if (physP.id === p.id) {
-                      physP.strategy = p.strategy;
-                      physP.name = p.name;
-                      physP.emoji = p.emoji;
+            });
+
+            hasInitialized.current = true;
+        } else {
+            // Sync late-joiners (who arrive after the grid is already formed)
+            players.forEach(p => {
+              if (localScores.current[p.id] === undefined) {
+                  localScores.current[p.id] = p.totalScore || 0;
+                  for(let i=0; i<settings.avatarsPerStudent; i++) {
+                      physicsPlayers.current[`${p.id}_${i}`] = { ...p, id: p.id, physicsId: `${p.id}_${i}`, type: 'student', x: Math.random() * 600 + 100, y: Math.random() * 400 + 100, vx: (Math.random() - 0.5) * 3, vy: (Math.random() - 0.5) * 3 };
                   }
-              });
-          }
-        });
+              } else {
+                  Object.values(physicsPlayers.current).forEach(physP => {
+                      if (physP.id === p.id) {
+                          physP.strategy = p.strategy;
+                          physP.name = p.name;
+                          physP.emoji = p.emoji;
+                      }
+                  });
+              }
+            });
+        }
       }, [players, room?.settings]);
 
       // Interval to update leaderboard data smoothly without blocking the 60fps canvas loop
@@ -546,11 +591,22 @@
       );
     }
 
-    function StudentStrategy({ userId, roomId, roomStatus, player, setErrorMsg }) {
+    function StudentStrategy({ userId, roomId, roomStatus, roomSettings, player, setErrorMsg }) {
+      const allowTFT = roomSettings?.allowTFT ?? true;
       const [localStrategy, setLocalStrategy] = useState(player?.strategy || ['COOP', 'COOP', 'COOP', 'COOP', 'COOP']);
       const [isUpdating, setIsUpdating] = useState(false);
 
+      // Force UI sync if database updates
       useEffect(() => { if (player && player.strategy && !isUpdating) setLocalStrategy(player.strategy); }, [player]);
+
+      // Sanitize out TFT instantly if the teacher disabled it while the student is in-game
+      useEffect(() => {
+        if (!allowTFT && localStrategy.includes('TFT')) {
+          const sanitized = localStrategy.map(s => s === 'TFT' ? 'COOP' : s);
+          setLocalStrategy(sanitized);
+          update(ref(db, `${getPlayersPath()}/${userId}`), { strategy: sanitized }).catch(() => {});
+        }
+      }, [allowTFT, localStrategy, userId]);
 
       const updateStrategy = async (index, value) => {
         const newStrategy = [...localStrategy]; newStrategy[index] = value; setLocalStrategy(newStrategy);
@@ -582,10 +638,10 @@
                 <div key={roundIndex} className="bg-slate-800 rounded-2xl p-4 border border-slate-700 shadow-sm relative overflow-hidden group">
                   <div className="absolute left-0 top-0 bottom-0 w-1 bg-slate-600"></div>
                   <h4 className="text-slate-400 font-bold mb-3 text-sm tracking-wider pl-2">MATCH ROUND {roundIndex + 1}</h4>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className={`grid ${allowTFT ? 'grid-cols-3' : 'grid-cols-2'} gap-2`}>
                     <StrategyButton active={localStrategy[roundIndex] === 'COOP'} onClick={() => updateStrategy(roundIndex, 'COOP')} color="blue" label="COOP" icon="🤝" />
                     <StrategyButton active={localStrategy[roundIndex] === 'BETRAY'} onClick={() => updateStrategy(roundIndex, 'BETRAY')} color="red" label="BETRAY" icon="🔪" />
-                    <StrategyButton active={localStrategy[roundIndex] === 'TFT'} onClick={() => updateStrategy(roundIndex, 'TFT')} color="purple" label="TFT" icon="🔁" />
+                    {allowTFT && <StrategyButton active={localStrategy[roundIndex] === 'TFT'} onClick={() => updateStrategy(roundIndex, 'TFT')} color="purple" label="TFT" icon="🔁" />}
                   </div>
                 </div>
               ))}
