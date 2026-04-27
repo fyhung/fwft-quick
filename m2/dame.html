@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>不要不要不要三角形</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background-color: #f3f0e7; /* 溫暖的米色背景 */
+            background-image: 
+                radial-gradient(circle at 20% 30%, rgba(139, 195, 74, 0.05) 0%, transparent 60%), /* 柔和的鼠尾草綠 */
+                radial-gradient(circle at 80% 70%, rgba(205, 133, 63, 0.05) 0%, transparent 60%); /* 柔和的木質棕 */
+            color: #4a4a4a; /* 深灰褐色字體 */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            font-family: 'Georgia', serif; /* 帶有古典與自然感的字體 */
+            overflow-x: hidden;
+            overflow-y: auto;
+            padding: 2rem 0;
+        }
+        .canvas-container {
+            position: relative;
+            padding: 30px;
+            background: rgba(255, 255, 255, 0.6);
+            border-radius: 50%;
+            box-shadow: 0 10px 30px rgba(100, 90, 80, 0.1), inset 0 2px 10px rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(200, 190, 180, 0.3);
+        }
+        canvas {
+            border-radius: 50%;
+            cursor: pointer;
+            display: block;
+        }
+        .message-box {
+            position: absolute;
+            top: calc(100% + 20px);
+            left: 50%;
+            transform: translateX(-50%) translateY(-10px);
+            background: rgba(250, 248, 245, 0.95);
+            padding: 2rem 2.5rem;
+            border-radius: 20px;
+            border: 1px solid rgba(210, 200, 190, 0.5);
+            text-align: center;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 50;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 20px 40px rgba(80, 70, 60, 0.15);
+            transition: all 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+            width: max-content;
+            max-width: 90vw;
+        }
+        .message-box.show {
+            opacity: 1;
+            pointer-events: auto;
+            transform: translateX(-50%) translateY(0);
+        }
+        .status-badge {
+            background: rgba(255, 255, 255, 0.8);
+            border: 1px solid rgba(180, 170, 160, 0.3);
+            border-radius: 999px;
+            padding: 0.5rem 1.5rem;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.03);
+        }
+        .font-sans-round {
+            font-family: 'Quicksand', 'Nunito', sans-serif; /* 用於UI的圓潤字體，若無則回退 */
+        }
+    </style>
+</head>
+<body>
+
+    <div class="text-center mb-6 z-10">
+        <h1 class="text-5xl font-bold mb-3 text-[#5d4037] drop-shadow-sm" style="letter-spacing: 2px;">
+            不要不要不要三角形
+        </h1>
+        <p class="text-[#795548] text-base mb-5 font-sans-round">
+            規則：先連成同色三角形的人 <span class="text-[#d84315] font-bold text-lg">輸</span>！
+        </p>
+        
+        <div class="flex justify-center gap-10 text-lg font-bold mb-6 font-sans-round">
+            <div class="flex items-center gap-3">
+                <div class="w-5 h-5 rounded-full bg-[#d84315] shadow-[0_2px_4px_rgba(216,67,21,0.3)]"></div>
+                <span class="text-[#a64b2a]">你 (橘紅)</span>
+            </div>
+            <div class="flex items-center gap-3">
+                <div class="w-5 h-5 rounded-full bg-[#2e7d32] shadow-[0_2px_4px_rgba(46,125,50,0.3)]"></div>
+                <span class="text-[#388e3c]">電腦 (森林綠)</span>
+            </div>
+        </div>
+
+        <div class="status-badge inline-block transition-all duration-500 font-sans-round">
+            <div id="status" class="text-xl font-bold text-[#f57c00]">輪到你了！請點擊兩個點連線</div>
+        </div>
+    </div>
+
+    <div class="relative z-10 flex flex-col items-center pb-24">
+        <div class="canvas-container">
+            <canvas id="gameCanvas" width="400" height="400"></canvas>
+        </div>
+
+        <div id="gameOverMsg" class="message-box">
+            <h2 id="winnerTitle" class="text-4xl font-bold mb-4 text-[#5d4037]"></h2>
+            <p id="winnerDesc" class="text-lg text-[#6d4c41] mb-8 font-sans-round"></p>
+            <button onclick="resetGame()" class="px-8 py-3 bg-[#8d6e63] text-white hover:bg-[#795548] rounded-full font-bold text-lg transition-colors shadow-md">
+                再來一局
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const statusEl = document.getElementById('status');
+        const gameOverMsg = document.getElementById('gameOverMsg');
+        const winnerTitle = document.getElementById('winnerTitle');
+        const winnerDesc = document.getElementById('winnerDesc');
+
+        const NUM_POINTS = 6;
+        const RADIUS = 150;
+        const CENTER = { x: 200, y: 200 };
+        const POINT_RADIUS = 14; // 稍微大一點的點
+        
+        // Colors - Nature Theme
+        const COLOR_PLAYER = '#d84315'; // 溫暖的橘紅 (秋葉)
+        const COLOR_COMPUTER = '#2e7d32'; // 深森林綠
+        const COLOR_HOVER = '#fbc02d'; // 陽光黃
+        const COLOR_POINT_BASE = '#d7ccc8'; // 淺卡其色 (鵝卵石)
+        
+        let points = [];
+        let lines = []; 
+        let selectedPoint = null;
+        let isPlayerTurn = true;
+        let gameOver = false;
+        let mousePos = null;
+
+        function initPoints() {
+            points = [];
+            for (let i = 0; i < NUM_POINTS; i++) {
+                const angle = (i * 2 * Math.PI) / NUM_POINTS - Math.PI / 2;
+                points.push({
+                    x: CENTER.x + RADIUS * Math.cos(angle),
+                    y: CENTER.y + RADIUS * Math.sin(angle),
+                    id: i,
+                    baseRadius: POINT_RADIUS
+                });
+            }
+        }
+
+        // Animation Loop
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const time = Date.now() / 1000;
+
+            // 0. 畫出所有尚未連線的可能路徑 (淺灰色底線)
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = 'rgba(210, 200, 190, 0.5)'; // 配合自然主題的柔和淺灰色
+            for (let i = 0; i < NUM_POINTS; i++) {
+                for (let j = i + 1; j < NUM_POINTS; j++) {
+                    if (!lineExists(i, j)) {
+                        ctx.beginPath();
+                        ctx.moveTo(points[i].x, points[i].y);
+                        ctx.lineTo(points[j].x, points[j].y);
+                        ctx.stroke();
+                    }
+                }
+            }
+
+            // 1. 畫線 (實體感，移除強烈發光)
+            lines.forEach(line => {
+                ctx.beginPath();
+                ctx.moveTo(points[line.p1].x, points[line.p1].y);
+                ctx.lineTo(points[line.p2].x, points[line.p2].y);
+                
+                ctx.lineWidth = 5;
+                ctx.strokeStyle = line.owner === 'player' ? COLOR_PLAYER : COLOR_COMPUTER;
+                ctx.lineCap = 'round'; // 圓潤的線條端點
+                ctx.stroke();
+            });
+
+            // 2. 畫預覽線 (柔和的虛線)
+            if (selectedPoint !== null && mousePos && !gameOver && isPlayerTurn) {
+                ctx.beginPath();
+                ctx.moveTo(points[selectedPoint].x, points[selectedPoint].y);
+                ctx.lineTo(mousePos.x, mousePos.y);
+                
+                ctx.lineWidth = 3;
+                // 柔和的呼吸透明度
+                ctx.strokeStyle = `rgba(216, 67, 21, ${0.4 + Math.sin(time * 3) * 0.2})`;
+                ctx.setLineDash([10, 10]);
+                ctx.lineCap = 'round';
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+
+            // 3. 畫點 (類似平滑的木製圓盤或鵝卵石)
+            points.forEach(p => {
+                const isSelected = p.id === selectedPoint;
+                const pulse = Math.sin(time * 2 + p.id) * 1.5;
+                const currentRadius = isSelected ? p.baseRadius + 3 + pulse : p.baseRadius;
+
+                // 點的陰影 (營造微凸的立體感)
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, currentRadius, 0, 2 * Math.PI);
+                ctx.shadowColor = 'rgba(100, 90, 80, 0.3)';
+                ctx.shadowBlur = isSelected ? 8 : 4;
+                ctx.shadowOffsetY = isSelected ? 4 : 2;
+                
+                ctx.fillStyle = isSelected ? COLOR_HOVER : COLOR_POINT_BASE;
+                ctx.fill();
+                
+                // 重置陰影，畫邊框
+                ctx.shadowBlur = 0;
+                ctx.shadowOffsetY = 0;
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = isSelected ? '#f57f17' : '#bcaaa4';
+                ctx.stroke();
+                
+                // 內側亮光 (高光效果，增加圓潤質感)
+                ctx.beginPath();
+                ctx.arc(p.x - currentRadius*0.25, p.y - currentRadius*0.25, currentRadius * 0.4, 0, 2 * Math.PI);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+                ctx.fill();
+            });
+
+            requestAnimationFrame(animate);
+        }
+
+        function lineExists(p1, p2) {
+            return lines.some(l => (l.p1 === p1 && l.p2 === p2) || (l.p1 === p2 && l.p2 === p1));
+        }
+
+        function checkForTriangle(owner) {
+            const ownerLines = lines.filter(l => l.owner === owner);
+            for (let i = 0; i < ownerLines.length; i++) {
+                for (let j = i + 1; j < ownerLines.length; j++) {
+                    const l1 = ownerLines[i];
+                    const l2 = ownerLines[j];
+                    
+                    let sharedPoint = -1;
+                    let endA = -1, endB = -1;
+                    
+                    if (l1.p1 === l2.p1) { sharedPoint = l1.p1; endA = l1.p2; endB = l2.p2; }
+                    else if (l1.p1 === l2.p2) { sharedPoint = l1.p1; endA = l1.p2; endB = l2.p1; }
+                    else if (l1.p2 === l2.p1) { sharedPoint = l1.p2; endA = l1.p1; endB = l2.p2; }
+                    else if (l1.p2 === l2.p2) { sharedPoint = l1.p2; endA = l1.p1; endB = l2.p1; }
+
+                    if (sharedPoint !== -1) {
+                        if (ownerLines.some(l => (l.p1 === endA && l.p2 === endB) || (l.p1 === endB && l.p2 === endA))) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
+        function handleEndGame(loser) {
+            gameOver = true;
+            statusEl.innerText = "遊戲結束";
+            statusEl.className = "text-xl font-bold text-[#8d6e63]";
+            
+            if (loser === 'player') {
+                winnerTitle.innerText = "哎呀，連線了！";
+                winnerTitle.className = "text-4xl font-bold mb-4 text-[#d84315]";
+                winnerDesc.innerText = "你畫出了紅色的三角形，電腦獲得勝利。";
+            } else {
+                winnerTitle.innerText = "完美的防守！";
+                winnerTitle.className = "text-4xl font-bold mb-4 text-[#2e7d32]";
+                winnerDesc.innerText = "電腦被迫畫出綠色三角形，你贏了！";
+            }
+            
+            gameOverMsg.classList.add('show');
+        }
+
+        function computerMove() {
+            if (gameOver) return;
+
+            let availableMoves = [];
+            for (let i = 0; i < NUM_POINTS; i++) {
+                for (let j = i + 1; j < NUM_POINTS; j++) {
+                    if (!lineExists(i, j)) availableMoves.push({ p1: i, p2: j });
+                }
+            }
+
+            if (availableMoves.length === 0) return;
+
+            let safeMoves = [];
+            for (const move of availableMoves) {
+                lines.push({ ...move, owner: 'computer' });
+                if (!checkForTriangle('computer')) safeMoves.push(move);
+                lines.pop(); 
+            }
+
+            let chosenMove = safeMoves.length > 0 
+                ? safeMoves[Math.floor(Math.random() * safeMoves.length)] 
+                : availableMoves[0];
+
+            lines.push({ ...chosenMove, owner: 'computer' });
+
+            if (checkForTriangle('computer')) {
+                handleEndGame('computer');
+            } else {
+                isPlayerTurn = true;
+                statusEl.innerText = "輪到你了！請點擊兩個點連線";
+                statusEl.className = "text-xl font-bold text-[#f57c00]";
+            }
+        }
+        
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            mousePos = {
+                x: (e.clientX - rect.left) * scaleX,
+                y: (e.clientY - rect.top) * scaleY
+            };
+        });
+
+        canvas.addEventListener('mouseleave', () => {
+            mousePos = null;
+        });
+
+        canvas.addEventListener('click', (e) => {
+            if (!isPlayerTurn || gameOver) return;
+
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            const clickX = (e.clientX - rect.left) * scaleX;
+            const clickY = (e.clientY - rect.top) * scaleY;
+
+            let clickedPt = -1;
+            for (let i = 0; i < NUM_POINTS; i++) {
+                const dist = Math.hypot(clickX - points[i].x, clickY - points[i].y);
+                if (dist <= POINT_RADIUS * 2.5) { 
+                    clickedPt = i;
+                    break;
+                }
+            }
+
+            if (clickedPt !== -1) {
+                if (selectedPoint === null) {
+                    selectedPoint = clickedPt;
+                } else if (selectedPoint === clickedPt) {
+                    selectedPoint = null; 
+                } else {
+                    if (!lineExists(selectedPoint, clickedPt)) {
+                        lines.push({ p1: selectedPoint, p2: clickedPt, owner: 'player' });
+                        selectedPoint = null;
+
+                        if (checkForTriangle('player')) {
+                            handleEndGame('player');
+                        } else {
+                            isPlayerTurn = false;
+                            statusEl.innerText = "電腦思考中...";
+                            statusEl.className = "text-xl font-bold text-[#43a047]";
+                            setTimeout(computerMove, 700); 
+                        }
+                    } else {
+                        selectedPoint = null;
+                    }
+                }
+            } else {
+                selectedPoint = null;
+            }
+        });
+
+        function resetGame() {
+            lines = [];
+            selectedPoint = null;
+            isPlayerTurn = true;
+            gameOver = false;
+            gameOverMsg.classList.remove('show');
+            statusEl.innerText = "輪到你了！請點擊兩個點連線";
+            statusEl.className = "text-xl font-bold text-[#f57c00]";
+            initPoints();
+        }
+
+        // Initialize and start animation loop
+        initPoints();
+        animate();
+    </script>
+</body>
+</html>
